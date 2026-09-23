@@ -2,12 +2,13 @@ import "server-only";
 import { cookies } from "next/headers";
 import { createServerClient } from "@supabase/ssr";
 import { publicEnv } from "@/lib/env";
+import type { Database } from "@/lib/database.types";
 
 // Per-request client acting as the signed-in user (RLS applies).
 // Create a new one for every request; never share across requests.
 export async function createClient() {
   const cookieStore = await cookies();
-  return createServerClient(publicEnv.supabaseUrl, publicEnv.supabaseAnonKey, {
+  return createServerClient<Database>(publicEnv.supabaseUrl, publicEnv.supabaseAnonKey, {
     cookies: {
       getAll: () => cookieStore.getAll(),
       setAll(cookiesToSet) {
