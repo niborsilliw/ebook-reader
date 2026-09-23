@@ -219,14 +219,11 @@ create policy "messages_insert_own" on public.messages
   );
 
 -- ---------------------------------------------------------------------------
--- Storage: private `books` bucket, one folder per user.
+-- Storage policies for the private `books` bucket, one folder per user.
 -- Layout: {user_id}/{book_id}/book.epub | cover.{ext} | locations.json
--- 50 MB matches the Supabase Free plan's global upload cap.
+-- The bucket itself (private, 50 MB limit) is created through the Storage
+-- API / CLI (supabase/config.toml [storage.buckets.books]), never by SQL.
 -- ---------------------------------------------------------------------------
-insert into storage.buckets (id, name, public, file_size_limit)
-values ('books', 'books', false, 52428800)
-on conflict (id) do nothing;
-
 create policy "books_bucket_select_own" on storage.objects
   for select to authenticated
   using (bucket_id = 'books' and (storage.foldername(name))[1] = (select auth.uid())::text);
