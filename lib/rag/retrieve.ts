@@ -24,13 +24,18 @@ export type RetrievalDeps = {
 };
 
 /**
- * Text to embed for a question. Short follow-ups ("why?", "and in part 3?")
- * carry little meaning alone, so the previous question is prepended.
+ * Short questions after an earlier one ("why?", "how so?", "and in Part IV?")
+ * only make sense in its context.
  */
+export function isFollowUp(question: string, previousQuestion?: string | null): previousQuestion is string {
+  const words = question.trim().split(/\s+/).filter(Boolean).length;
+  return Boolean(previousQuestion?.trim()) && words <= FOLLOW_UP_MAX_WORDS;
+}
+
+/** Text to embed for a question: follow-ups carry the previous question with them. */
 export function buildRetrievalQuery(question: string, previousQuestion?: string | null): string {
   const q = question.trim();
-  const words = q.split(/\s+/).filter(Boolean).length;
-  return previousQuestion && words <= FOLLOW_UP_MAX_WORDS ? `${previousQuestion.trim()}\n${q}` : q;
+  return isFollowUp(q, previousQuestion) ? `${previousQuestion.trim()}\n${q}` : q;
 }
 
 export async function retrieveSources(

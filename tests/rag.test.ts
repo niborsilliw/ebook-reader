@@ -187,6 +187,30 @@ describe("prompt building", () => {
     expect(turn.content.trimEnd().endsWith("Question: What is God?")).toBe(true);
   });
 
+  it("frames a short follow-up with the previous question, and tells the model not to repeat itself", () => {
+    const history = [
+      { role: "user" as const, content: "How does Spinoza define God?" },
+      { role: "assistant" as const, content: "As a being absolutely infinite [1]." },
+    ];
+    const followUp = buildPrompt({ bookTitle: "Ethics", sources, history, question: "why?" }).messages.at(-1)!.content;
+    expect(followUp).toContain('This is a follow-up to the previous question: "How does Spinoza define God?"');
+    expect(followUp).toContain("without repeating your previous answer");
+    expect(followUp.trimEnd().endsWith("Question: why?")).toBe(true);
+
+    const standalone = buildPrompt({
+      bookTitle: "Ethics", sources, history, question: "What does Spinoza say about the emotions in Part III?",
+    }).messages.at(-1)!.content;
+    expect(standalone).not.toContain("follow-up");
+
+    const first = buildPrompt({ bookTitle: "Ethics", sources, history: [], question: "why?" }).messages.at(-1)!.content;
+    expect(first).not.toContain("follow-up");
+
+    const s = systemPrompt("Ethics");
+    expect(s).toMatch(/"why\?" asks for the reasons, arguments or proofs/);
+    expect(s).toMatch(/Never repeat an earlier answer/);
+    expect(s).toMatch(/Rewording the earlier answer is not a reason/);
+  });
+
   it("says explicitly when no excerpts matched", () => {
     const { messages } = buildPrompt({ bookTitle: "Ethics", sources: [], history: [], question: "q" });
     expect(messages[0].content).toContain("No excerpts from the book matched this question.");
