@@ -26,8 +26,11 @@ export type PendingChunk = { id: number; content: string; chapter_title: string 
 /** Everything the ingest worker needs from Postgres and Storage. */
 export interface IngestStore {
   getBook(bookId: string): Promise<BookRow | null>;
-  /** uploaded|failed -> parsing with counters reset. False if the book was in another state. */
-  requeue(bookId: string): Promise<boolean>;
+  /**
+   * uploaded|failed (and ready, with `reindex`) -> parsing with counters
+   * reset. False if the book was in another state.
+   */
+  requeue(bookId: string, opts?: { reindex?: boolean }): Promise<boolean>;
   /** Atomic lease via claim_ingest(); null if not claimable. */
   claim(bookId: string, leaseSeconds: number): Promise<BookRow | null>;
   updateBook(bookId: string, patch: BookPatch): Promise<void>;
@@ -55,7 +58,7 @@ export function createSupabaseIngestStore(db: SupabaseClient<Database>): IngestS
       return check(await db.from("books").select("*").eq("id", bookId).maybeSingle(), "load book");
     },
 
-    async requeue(bookId) {
+    async requeue(bookId, opts) {
       const rows = check(
         await db
           .from("books")
@@ -68,7 +71,7 @@ export function createSupabaseIngestStore(db: SupabaseClient<Database>): IngestS
             ingest_heartbeat_at: null,
           })
           .eq("id", bookId)
-          .in("status", ["uploaded", "failed"])
+          .in("status", opts?.reindex ? ["uploaded", "failed", "ready"] : ["uploaded", "failed"])
           .select("id"),
         "requeue book",
       );

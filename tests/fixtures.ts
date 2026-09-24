@@ -153,3 +153,78 @@ export async function largeEpub(chapters: number, wordsPerChapter: number) {
   );
   return finish(zip);
 }
+
+/**
+ * Mirrors Project Gutenberg's Ethics: several Parts per XHTML file, TOC
+ * entries as #anchors, a bare "PART II." followed by a subtitle entry,
+ * "PART V:" nested too deep, and Gutenberg header/license boilerplate.
+ */
+export async function gutenbergStyleEpub() {
+  const zip = new JSZip();
+  zip.file("mimetype", "application/epub+zip");
+  zip.file("META-INF/container.xml", container("OEBPS/content.opf"));
+  zip.file(
+    "OEBPS/content.opf",
+    `<?xml version="1.0"?><package xmlns="http://www.idpf.org/2007/opf" version="3.0">
+<metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:title>The Ethics</dc:title></metadata>
+<manifest>
+  <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
+  <item id="b0" href="Text/book-0.xhtml" media-type="application/xhtml+xml"/>
+  <item id="b1" href="Text/book-1.xhtml" media-type="application/xhtml+xml"/>
+  <item id="b2" href="Text/book-2.xhtml" media-type="application/xhtml+xml"/>
+</manifest>
+<spine><itemref idref="b0"/><itemref idref="b1"/><itemref idref="b2"/></spine></package>`,
+  );
+  zip.file(
+    "OEBPS/nav.xhtml",
+    xhtml(
+      "nav",
+      `<nav epub:type="toc"><ol>
+        <li><a href="Text/book-0.xhtml#title">The Ethics</a></li>
+        <li><a href="Text/book-0.xhtml#author">Benedict de Spinoza</a></li>
+        <li><a href="Text/book-0.xhtml#p1">PART I. CONCERNING GOD.</a>
+          <ol><li><a href="Text/book-0.xhtml#p1defs">DEFINITIONS.</a></li>
+              <li><a href="Text/book-0.xhtml#p1props">PROPOSITIONS.</a></li></ol></li>
+        <li><a href="Text/book-0.xhtml#p2">PART II.</a>
+          <ol><li><a href="Text/book-0.xhtml#p2sub">ON THE NATURE AND ORIGIN OF THE MIND</a>
+            <ol><li><a href="Text/book-0.xhtml#p2pref">PREFACE</a></li>
+                <li><a href="Text/book-0.xhtml#p2props">PROPOSITIONS</a></li></ol></li></ol></li>
+        <li><a href="Text/book-1.xhtml#p4">PART IV:</a>
+          <ol><li><ol><li><a href="Text/book-1.xhtml#p5">PART V:</a></li></ol></li>
+              <li><a href="Text/book-1.xhtml#p5sub">Of the Power of the Understanding, or of Human Freedom</a>
+                <ol><li><a href="Text/book-1.xhtml#p5props">PROPOSITIONS.</a></li></ol></li></ol></li>
+        <li><a href="Text/book-2.xhtml#footer">THE FULL PROJECT GUTENBERG™ LICENSE</a></li>
+      </ol></nav>`,
+    ),
+  );
+  zip.file(
+    "OEBPS/Text/book-0.xhtml",
+    xhtml(
+      "Ethics",
+      `<section id="pg-header"><p>The Project Gutenberg eBook of The Ethics. This ebook is for the use of anyone anywhere.</p>
+         <p>*** START OF THE PROJECT GUTENBERG EBOOK THE ETHICS ***</p></section>
+       <h1 id="title">The Ethics</h1><h2 id="author">Benedict de Spinoza</h2>
+       <h2 id="p1">PART I. CONCERNING GOD.</h2>
+       <h3 id="p1defs">DEFINITIONS.</h3><p>VI. By God, I mean a being absolutely infinite.</p>
+       <h3 id="p1props">PROPOSITIONS.</h3><p>Prop. I. Substance is by nature prior to its modifications.</p>
+       <h2 id="p2">PART II.</h2><h2 id="p2sub">ON THE NATURE AND ORIGIN OF THE MIND</h2>
+       <h3 id="p2pref">PREFACE</h3><p>I now pass on to explaining the results which must follow from the essence of God.</p>
+       <h3 id="p2props">PROPOSITIONS</h3><p>Prop. XIII. The object of the idea constituting the human mind is the body.</p>`,
+    ),
+  );
+  zip.file(
+    "OEBPS/Text/book-1.xhtml",
+    xhtml(
+      "Ethics 2",
+      `<h2 id="p4">PART IV:</h2>
+       <h2 id="p5">PART V:</h2><h2 id="p5sub">Of the Power of the Understanding, or of Human Freedom</h2>
+       <h3 id="p5props">PROPOSITIONS.</h3><p>Prop. III. An emotion which is a passion ceases to be a passion.</p>
+       <p>*** END OF THE PROJECT GUTENBERG EBOOK THE ETHICS ***</p>`,
+    ),
+  );
+  zip.file(
+    "OEBPS/Text/book-2.xhtml",
+    xhtml("License", `<h2 id="footer">THE FULL PROJECT GUTENBERG™ LICENSE</h2><p>To protect the Project Gutenberg mission of promoting the free distribution…</p>`),
+  );
+  return finish(zip);
+}

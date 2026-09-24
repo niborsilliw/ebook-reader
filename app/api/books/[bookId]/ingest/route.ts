@@ -35,14 +35,16 @@ export async function POST(request: Request, { params }: { params: Promise<{ boo
   const book = await store.getBook(bookId);
   if (!book) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  if (book.status === "ready") return NextResponse.json({ status: "ready" });
+  // Owners can rebuild a finished book's index (e.g. after parser fixes).
+  const reindex = !isMachine && new URL(request.url).searchParams.get("reindex") === "1";
+  if (book.status === "ready" && !reindex) return NextResponse.json({ status: "ready" });
   if (book.status === "failed" && isMachine) return NextResponse.json({ status: "failed" });
-  if (book.status === "uploaded" || book.status === "failed") {
+  if (book.status === "uploaded" || book.status === "failed" || (book.status === "ready" && reindex)) {
     // The row exists before the upload finishes; don't start on a missing file.
     if (!(await store.epubExists(book.file_path))) {
       return NextResponse.json({ error: "Upload not finished" }, { status: 409 });
     }
-    await store.requeue(bookId);
+    await store.requeue(bookId, { reindex });
   }
 
   const origin = new URL(request.url).origin;

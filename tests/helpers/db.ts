@@ -65,12 +65,13 @@ export function createSqlIngestStore(pg: PGlite, files = new Map<string, Uint8Ar
       return toBook((await pg.query<Record<string, unknown>>(`select * from public.books where id = $1`, [bookId])).rows[0]);
     },
 
-    async requeue(bookId) {
+    async requeue(bookId, opts) {
+      const statuses = opts?.reindex ? ["uploaded", "failed", "ready"] : ["uploaded", "failed"];
       const res = await pg.query(
         `update public.books set status = 'parsing', chunk_count = 0, embedded_count = 0, ingest_attempts = 0,
            ingest_error = null, ingest_heartbeat_at = null
-         where id = $1 and status in ('uploaded', 'failed') returning id`,
-        [bookId],
+         where id = $1 and status = any(string_to_array($2, ',')::public.ingest_status[]) returning id`,
+        [bookId, statuses.join(",")],
       );
       return res.rows.length === 1;
     },

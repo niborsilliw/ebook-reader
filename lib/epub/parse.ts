@@ -1,13 +1,18 @@
 import JSZip from "jszip";
 import { XMLParser } from "fast-xml-parser";
 import { parse as parseHtml, type HTMLElement } from "node-html-parser";
-import { htmlToText } from "./html-to-text";
+import { htmlToSegments } from "./html-to-text";
+import { applyHeadings, EMPTY_LABEL, isBoilerplate, isHeadingOnly, labelOf, stripGutenberg } from "./labels";
 
 export type TocEntry = { title: string; href: string; level: number };
 
 export type SpineSection = {
   spineIndex: number;
-  /** Relative to the OPF directory, as in the manifest: what epub.js display() takes. */
+  /**
+   * Relative to the OPF directory, as in the manifest, plus "#anchor" when
+   * the section starts at a TOC anchor inside the file: what epub.js
+   * display() takes.
+   */
   href: string;
   chapterTitle: string | null;
   text: string;
@@ -83,22 +88,48 @@ export async function parseEpub(input: ArrayBuffer | Uint8Array): Promise<Parsed
   const toc = await readToc(zip, opfDir, manifest, pkg.spine?.toc);
   const cover = await readCover(zip, opfDir, manifest, asArray(metadata.meta));
 
-  // Chapter title for each spine file: the first TOC entry pointing into it,
-  // else inherited from the previous spine file (chapters split over files).
-  const titleByFile = new Map<string, string>();
+  // Sections: each spine file is split wherever the TOC points into it
+  // (many books keep several chapters in one file). Labels carry over to
+  // following files until the TOC says otherwise.
+  const tocByFile = new Map<string, TocEntry[]>();
   for (const entry of toc) {
     const file = stripFragment(entry.href);
-    if (!titleByFile.has(file)) titleByFile.set(file, entry.title);
+    tocByFile.set(file, [...(tocByFile.get(file) ?? []), entry]);
   }
+  const topLevel = Math.min(...toc.map((e) => e.level), 0);
 
   const sections: SpineSection[] = [];
-  let currentTitle: string | null = null;
+  let label = EMPTY_LABEL;
+  let pendingHeads: TocEntry[] = [];
   for (const [spineIndex, item] of spineItems.entries()) {
-    currentTitle = titleByFile.get(item.href) ?? currentTitle;
     if (!/html/.test(item.mediaType) && !/\.x?html?$/i.test(item.href)) continue;
     const html = await readText(zip, join(opfDir, item.href));
     if (html == null) continue;
-    sections.push({ spineIndex, href: item.href, chapterTitle: currentTitle, text: htmlToText(html) });
+
+    const entries = tocByFile.get(item.href) ?? [];
+    const fragmentOf = (e: TocEntry) => splitFragment(e.href)[1] ?? null;
+    const anchors = new Set(entries.map(fragmentOf).filter((f): f is string => Boolean(f)));
+
+    for (const segment of htmlToSegments(html, anchors)) {
+      const heads = [...pendingHeads, ...entries.filter((e) => fragmentOf(e) === segment.anchor)];
+      const text = stripGutenberg(segment.text);
+      // A heading with no text of its own (e.g. "Part II" followed by its
+      // subtitle entry) is folded into the next segment's label.
+      if (isHeadingOnly(text, heads)) {
+        pendingHeads = heads;
+        continue;
+      }
+      pendingHeads = [];
+      label = applyHeadings(label, heads, topLevel);
+      const chapterTitle = labelOf(label);
+      if (isBoilerplate(chapterTitle)) continue;
+      sections.push({
+        spineIndex,
+        href: segment.anchor ? `${item.href}#${segment.anchor}` : item.href,
+        chapterTitle,
+        text,
+      });
+    }
   }
 
   return { title, author, language, toc, sections, cover };

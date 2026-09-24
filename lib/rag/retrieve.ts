@@ -42,7 +42,11 @@ export async function retrieveSources(
   const current = args.currentHref?.split("#")[0];
 
   return rows
-    .map((r) => ({ row: r, score: r.similarity + (current && r.spine_href === current ? CURRENT_CHAPTER_BOOST : 0) }))
+    // Chunk hrefs may carry a #section anchor; the boost is per file.
+    .map((r) => ({
+      row: r,
+      score: r.similarity + (current && r.spine_href.split("#")[0] === current ? CURRENT_CHAPTER_BOOST : 0),
+    }))
     .sort((a, b) => b.score - a.score)
     .slice(0, MAX_SOURCES)
     .map(({ row }, i) => ({

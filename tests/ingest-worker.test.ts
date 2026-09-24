@@ -285,6 +285,19 @@ describe("ingest worker", () => {
       expect((await store.getBook(BOOK))!.status).toBe("failed");
     });
 
+    it("a ready book is only requeued when reindexing, and rebuilds without duplicates", async () => {
+      const store = await setupBook(await epub3());
+      await store.requeue(BOOK);
+      await runToCompletion(store, mockEmbedder().embed);
+      const before = await chunkStats();
+
+      expect(await store.requeue(BOOK)).toBe(false);
+      expect(await store.requeue(BOOK, { reindex: true })).toBe(true);
+      expect((await store.getBook(BOOK))!).toMatchObject({ status: "parsing", embedded_count: 0 });
+      expect(await runToCompletion(store, mockEmbedder().embed)).toEqual(["ready"]);
+      expect(await chunkStats()).toEqual(before);
+    });
+
     it("a failed book can be requeued and completes", async () => {
       const store = await setupBook(await epub3());
       await store.updateBook(BOOK, { status: "failed", ingest_error: "earlier failure", ingest_attempts: 6 });
