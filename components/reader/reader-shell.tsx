@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { TocSheet } from "./toc-sheet";
 import type { ReaderApi } from "./epub-viewer";
+import { AssistantPanel } from "@/components/assistant/assistant-panel";
 
 // epub.js touches `window` at import time.
 const EpubViewer = dynamic(() => import("./epub-viewer").then((m) => m.EpubViewer), {
@@ -31,10 +32,12 @@ export function ReaderShell({ bookId, userId, title, author, fileUrl, initialCfi
   const [chapter, setChapter] = useState<string | null>(null);
   const [percent, setPercent] = useState<number | null>(null);
   const api = useRef<ReaderApi | null>(null);
+  const currentHref = useRef<string | null>(null);
 
-  const onLocation = useCallback((loc: { chapter: string | null; percentage: number | null }) => {
+  const onLocation = useCallback((loc: { chapter: string | null; percentage: number | null; href: string }) => {
     setChapter(loc.chapter);
     setPercent(loc.percentage);
+    currentHref.current = loc.href;
   }, []);
 
   return (
@@ -78,27 +81,23 @@ export function ReaderShell({ bookId, userId, title, author, fileUrl, initialCfi
         </footer>
       </div>
 
-      {/* Reserved for the research assistant (chat) panel. */}
       <aside
         id="assistant-panel"
         aria-label="Research assistant"
         hidden={!panelOpen}
         className={cn(
-          "w-full shrink-0 border-l border-[#e7e2d8] bg-background sm:w-[22rem]",
+          "w-full shrink-0 border-l border-[#e7e2d8] bg-background sm:w-[24rem]",
           "max-sm:absolute max-sm:inset-x-0 max-sm:bottom-0 max-sm:top-12 max-sm:z-20",
         )}
       >
-        <div className="flex h-12 items-center justify-between border-b px-4">
-          <h2 className="text-sm font-medium">Assistant</h2>
-          <Button variant="ghost" size="sm" onClick={() => setPanelOpen(false)}>
-            Close
-          </Button>
-        </div>
-        <div className="p-4 text-sm text-muted-foreground">
-          {ready
-            ? "Ask questions about this book here. Coming soon."
-            : "This book is still being indexed. The assistant will be available when it’s ready."}
-        </div>
+        <AssistantPanel
+          bookId={bookId}
+          bookTitle={title}
+          ready={ready}
+          getCurrentHref={() => currentHref.current}
+          onCite={(href) => api.current?.goTo(href)}
+          onClose={() => setPanelOpen(false)}
+        />
       </aside>
     </div>
   );

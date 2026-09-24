@@ -20,7 +20,7 @@ type Props = {
   fileUrl: string;
   initialCfi: string | null;
   toc: TocEntry[];
-  onLocation: (loc: { chapter: string | null; percentage: number | null }) => void;
+  onLocation: (loc: { chapter: string | null; percentage: number | null; href: string }) => void;
   onReady: (api: ReaderApi) => void;
 };
 
@@ -96,7 +96,7 @@ export function EpubViewer({ bookId, userId, fileUrl, initialCfi, toc, onLocatio
       if (!book) return;
       const hasLocations = book.locations.length() > 0;
       const percentage = hasLocations ? book.locations.percentageFromCfi(loc.start.cfi) : null;
-      onLocationRef.current({ chapter: chapterFor(loc.start.index), percentage });
+      onLocationRef.current({ chapter: chapterFor(loc.start.index), percentage, href: safeDecode(loc.start.href) });
       return { percentage };
     };
 
