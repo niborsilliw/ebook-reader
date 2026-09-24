@@ -10,3 +10,10 @@ export const isIngesting = (status: IngestStatus) =>
 
 export const titleFromFileName = (name: string) =>
   name.replace(/\.epub$/i, "").replace(/[_]+/g, " ").trim() || "Untitled";
+
+// No heartbeat/progress for this long => the job is presumed dead and the
+// library page re-kicks it. Must exceed a step's 60 s maximum.
+export const STALE_AFTER_MS = 2 * 60 * 1000;
+
+export const startIngest = (bookId: string) =>
+  fetch(`/api/books/${bookId}/ingest`, { method: "POST" }).catch(() => undefined);

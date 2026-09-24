@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { BOOKS_BUCKET } from "@/lib/storage-paths";
-import { isIngesting } from "@/lib/books";
+import { STALE_AFTER_MS, isIngesting } from "@/lib/books";
 import { BookCard } from "@/components/library/book-card";
 import { UploadButton } from "@/components/library/upload-button";
 import { StatusPoller } from "@/components/library/status-poller";
@@ -11,7 +11,7 @@ export default async function LibraryPage() {
   const supabase = await createClient();
   const { data: books, error } = await supabase
     .from("books")
-    .select("id, title, author, status, chunk_count, embedded_count, cover_path, ingest_error, created_at")
+    .select("id, title, author, status, chunk_count, embedded_count, cover_path, ingest_error, created_at, updated_at")
     .order("created_at", { ascending: false });
   if (error) throw error;
 
@@ -21,6 +21,13 @@ export default async function LibraryPage() {
     const { data } = await supabase.storage.from(BOOKS_BUCKET).createSignedUrls(coverPaths, 60 * 60);
     for (const item of data ?? []) if (item.path && item.signedUrl) coverUrls.set(item.path, item.signedUrl);
   }
+
+  // Staleness is judged on the server clock, against updated_at, which the
+  // worker bumps on every claim, heartbeat and batch.
+  const renderedAt = Date.now();
+  const staleIds = books
+    .filter((b) => isIngesting(b.status) && renderedAt - Date.parse(b.updated_at) > STALE_AFTER_MS)
+    .map((b) => b.id);
 
   return (
     <main className="mx-auto max-w-6xl px-4 py-6">
@@ -43,7 +50,7 @@ export default async function LibraryPage() {
         </ul>
       )}
 
-      <StatusPoller active={books.some((b) => isIngesting(b.status))} />
+      <StatusPoller active={books.some((b) => isIngesting(b.status))} staleIds={staleIds} />
     </main>
   );
 }

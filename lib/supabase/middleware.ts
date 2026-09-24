@@ -3,8 +3,9 @@ import { createServerClient } from "@supabase/ssr";
 import { publicEnv } from "@/lib/env";
 
 const PUBLIC_PATHS = ["/login", "/auth/"];
-// Machine-to-machine routes authenticate with their own secrets.
-const MACHINE_PATHS = ["/api/ingest/"];
+// Routes that also accept machine-to-machine calls authenticate themselves
+// (secret header or session), so the middleware lets them through.
+const SELF_AUTHENTICATING = [/^\/api\/books\/[^/]+\/ingest$/];
 
 export async function updateSession(request: NextRequest) {
   let response = NextResponse.next({ request });
@@ -29,9 +30,9 @@ export async function updateSession(request: NextRequest) {
 
   const path = request.nextUrl.pathname;
   const isPublic = PUBLIC_PATHS.some((p) => path.startsWith(p));
-  const isMachine = MACHINE_PATHS.some((p) => path.startsWith(p));
+  const selfAuth = SELF_AUTHENTICATING.some((re) => re.test(path));
 
-  if (!signedIn && !isPublic && !isMachine) {
+  if (!signedIn && !isPublic && !selfAuth) {
     if (path.startsWith("/api/")) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }

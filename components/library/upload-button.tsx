@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/browser";
 import { BOOKS_BUCKET } from "@/lib/storage-paths";
-import { MAX_UPLOAD_BYTES } from "@/lib/books";
+import { MAX_UPLOAD_BYTES, startIngest } from "@/lib/books";
 import { Button } from "@/components/ui/button";
 
 export function UploadButton() {
@@ -35,6 +35,7 @@ export function UploadButton() {
       if (error) throw new Error(error.message);
 
       toast.success(`Uploaded “${file.name}”`);
+      await startIngest(body.bookId);
     } catch (err) {
       // Don't leave a book row with no file behind it.
       if (bookId) await fetch(`/api/books/${bookId}`, { method: "DELETE" }).catch(() => {});

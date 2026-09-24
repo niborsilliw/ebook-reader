@@ -3,6 +3,7 @@ import type { IngestStatus } from "@/lib/books";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { DeleteBookButton } from "./delete-book-button";
+import { RetryIngestButton } from "./retry-ingest-button";
 
 type Book = {
   id: string;
@@ -16,7 +17,7 @@ type Book = {
 
 const STATUS_LABEL: Record<IngestStatus, string> = {
   uploaded: "Queued",
-  parsing: "Reading file",
+  parsing: "Reading",
   embedding: "Indexing",
   ready: "Ready",
   failed: "Failed",
@@ -59,6 +60,7 @@ export function BookCard({ book, coverUrl }: { book: Book; coverUrl?: string }) 
           {book.status === "failed" && book.ingest_error && (
             <p className="line-clamp-2 text-xs text-destructive">{book.ingest_error}</p>
           )}
+          {book.status === "failed" && <RetryIngestButton bookId={book.id} />}
         </div>
       )}
     </div>
