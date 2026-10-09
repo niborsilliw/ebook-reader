@@ -44,7 +44,7 @@ export function ReaderShell({ bookId, userId, title, author, fileUrl, initialCfi
     <div className="flex h-[calc(100dvh-3rem)] bg-[#fbf9f4] text-[#1f1d1a]">
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="flex items-center gap-2 px-4 py-2 text-sm">
-          <Button variant="ghost" size="sm" render={<Link href="/library" />}>
+          <Button variant="ghost" size="sm" nativeButton={false} render={<Link href="/library" />}>
             ← Library
           </Button>
           <div className="min-w-0 flex-1 text-center">
