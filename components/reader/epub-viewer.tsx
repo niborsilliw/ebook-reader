@@ -5,6 +5,7 @@ import ePub, { type Book, type Location, type Rendition } from "epubjs";
 import type { TocEntry } from "@/lib/epub/parse";
 import { createClient } from "@/lib/supabase/browser";
 import { BOOKS_BUCKET, locationsPath } from "@/lib/storage-paths";
+import { IMAGE_PAGE_STYLES, markImagePage } from "@/lib/reader/image-pages";
 
 const SAVE_DEBOUNCE_MS = 2000;
 const LOCATION_CHARS = 1600; // granularity of epub.js progress locations
@@ -137,6 +138,11 @@ export function EpubViewer({ bookId, userId, fileUrl, initialCfi, toc, onLocatio
           "p, li, blockquote, dd": { "font-family": "inherit !important", "line-height": "inherit" },
           a: { color: "inherit" },
           img: { "max-width": "100%" },
+          ...IMAGE_PAGE_STYLES,
+        });
+        // Covers and other single-picture pages: centred at 60% width instead of full-bleed.
+        rendition.hooks.content.register((contents: { document: Document }) => {
+          markImagePage(contents.document);
         });
 
         rendition.on("relocated", (loc: Location) => {
