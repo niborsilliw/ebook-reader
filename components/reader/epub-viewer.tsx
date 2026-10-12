@@ -46,6 +46,7 @@ export function EpubViewer({ bookId, userId, fileUrl, initialCfi, toc, onLocatio
     if (!el) return;
     let cancelled = false;
     let book: Book | null = null;
+    let displayed = false;
     const supabase = createClient();
 
     // --- debounced position saving -------------------------------------
@@ -124,6 +125,8 @@ export function EpubViewer({ bookId, userId, fileUrl, initialCfi, toc, onLocatio
         renditionRef.current = rendition;
 
         rendition.themes.default({
+          // Keep book content inside the page column on narrow screens.
+          "html, body": { "max-width": "100%", "box-sizing": "border-box" },
           body: {
             "font-family": `${SERIF} !important`,
             "font-size": "1.08rem",
@@ -134,10 +137,16 @@ export function EpubViewer({ bookId, userId, fileUrl, initialCfi, toc, onLocatio
             "font-kerning": "normal",
             hyphens: "auto",
             "-webkit-hyphens": "auto",
+            "hyphenate-limit-chars": "6 3 3",
+            // Safari's spelling of the 3/3 before/after limits.
+            "-webkit-hyphenate-limit-before": "3",
+            "-webkit-hyphenate-limit-after": "3",
+            "overflow-wrap": "break-word",
           },
           "p, li, blockquote, dd": { "font-family": "inherit !important", "line-height": "inherit" },
           a: { color: "inherit" },
-          img: { "max-width": "100%" },
+          "img, svg, video, table": { "max-width": "100%" },
+          pre: { "white-space": "pre-wrap" },
           ...IMAGE_PAGE_STYLES,
         });
         // Covers and other single-picture pages: centred at 60% width instead of full-bleed.
@@ -158,6 +167,7 @@ export function EpubViewer({ bookId, userId, fileUrl, initialCfi, toc, onLocatio
           await rendition.display(); // saved CFI no longer valid
         }
         if (cancelled) return;
+        displayed = true;
         setStatus("ready");
         onReadyRef.current({
           goTo: (target) => {
@@ -210,7 +220,8 @@ export function EpubViewer({ bookId, userId, fileUrl, initialCfi, toc, onLocatio
       cancelAnimationFrame(frame);
       frame = requestAnimationFrame(() => {
         const r = renditionRef.current;
-        if (r) r.resize(el.clientWidth, el.clientHeight);
+        // epub.js throws if asked to resize before its first page is laid out.
+        if (r && displayed) r.resize(el.clientWidth, el.clientHeight);
       });
     });
     observer.observe(el);
@@ -231,8 +242,10 @@ export function EpubViewer({ bookId, userId, fileUrl, initialCfi, toc, onLocatio
   return (
     <div className="absolute inset-0 flex items-stretch">
       <PageButton side="prev" disabled={status !== "ready" || edges.atStart} onClick={() => renditionRef.current?.prev()} />
-      <div className="relative mx-auto h-full w-full max-w-[44rem] px-2 py-6 sm:px-8">
-        <div ref={containerRef} className="h-full w-full" />
+      {/* min-w-0: epub.js sizes its container in pixels, which would otherwise
+          stop this flex item shrinking to fit a phone screen. */}
+      <div className="relative mx-auto h-full w-full max-w-[44rem] min-w-0 py-6 sm:px-8">
+        <div ref={containerRef} className="h-full w-full overflow-hidden" />
         {status === "loading" && <Overlay>Opening book…</Overlay>}
         {status === "error" && <Overlay>This book couldn’t be opened. Try reloading the page.</Overlay>}
       </div>
@@ -248,7 +261,7 @@ function PageButton({ side, disabled, onClick }: { side: "prev" | "next"; disabl
       aria-label={side === "prev" ? "Previous page" : "Next page"}
       disabled={disabled}
       onClick={onClick}
-      className="group flex w-12 shrink-0 items-center justify-center text-2xl text-[#b3ab9d] transition-colors hover:text-[#1f1d1a] disabled:pointer-events-none disabled:opacity-0 sm:w-20"
+      className="group flex w-7 shrink-0 items-center justify-center text-2xl text-[#b3ab9d] transition-colors hover:text-[#1f1d1a] disabled:pointer-events-none disabled:opacity-0 sm:w-20"
     >
       <span aria-hidden className="font-serif">
         {side === "prev" ? "‹" : "›"}
