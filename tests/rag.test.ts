@@ -222,7 +222,8 @@ describe("prompt building", () => {
     expect(s).toBe(systemPrompt("Ethics", "companion"));
     expect(s).toContain('"Ethics"');
     expect(s).toMatch(/reading companion/);
-    expect(s).toMatch(/Bring everything you know/);
+    expect(s).toMatch(/Never explain or summarise the text/);
+    expect(s).toMatch(/Use that to form your own view, not to report it/);
     expect(s).toMatch(/Speculate/);
     expect(s).toMatch(/Disagree/);
     expect(s).toMatch(/Do not cite by default/);
