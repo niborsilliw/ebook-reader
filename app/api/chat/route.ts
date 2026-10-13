@@ -1,18 +1,26 @@
 import { NextResponse } from "next/server";
-import { createUIMessageStream, createUIMessageStreamResponse, streamText } from "ai";
+import Anthropic from "@anthropic-ai/sdk";
+import { createUIMessageStream, createUIMessageStreamResponse, streamText, type UIMessageStreamWriter } from "ai";
 import { mistral } from "@ai-sdk/mistral";
 import { z } from "zod";
 import { createClient, getUserId } from "@/lib/supabase/server";
 import { embedTexts } from "@/lib/mistral";
 import { buildRetrievalQuery, retrieveSources, type MatchRow } from "@/lib/rag/retrieve";
-import { buildPrompt, citationsFor, conversationTitle, HISTORY_MESSAGES } from "@/lib/rag/prompt";
+import { buildPrompt, citationsFor, conversationTitle, HISTORY_MESSAGES, promptMode } from "@/lib/rag/prompt";
 import { toCitation } from "@/lib/rag/types";
 import type { ChatUIMessage } from "@/lib/chat/types";
 import { chatErrorMessage, upstreamStatus } from "@/lib/chat/errors";
 
 export const maxDuration = 60;
 
-const CHAT_MODEL = process.env.MISTRAL_CHAT_MODEL || "mistral-medium-latest";
+const PROMPT_MODE = promptMode(process.env.CHAT_PROMPT_MODE);
+// Companion answers come from Claude; grounded answers stay on Mistral.
+const USE_CLAUDE = PROMPT_MODE === "companion";
+const CHAT_MODEL = USE_CLAUDE
+  ? process.env.ANTHROPIC_CHAT_MODEL || "claude-haiku-4-5"
+  : process.env.MISTRAL_CHAT_MODEL || "mistral-medium-latest";
+const TEMPERATURE = USE_CLAUDE ? 0.6 : 0.2;
+const CLAUDE_MAX_TOKENS = 16000;
 
 const Body = z.object({
   bookId: z.uuid(),
@@ -24,6 +32,10 @@ const Body = z.object({
 export async function POST(request: Request) {
   const supabase = await createClient();
   if (!(await getUserId(supabase))) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  if (USE_CLAUDE && !process.env.ANTHROPIC_API_KEY) {
+    return NextResponse.json({ error: "Chat isn't configured: ANTHROPIC_API_KEY is missing." }, { status: 500 });
+  }
 
   const parsed = Body.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: "Invalid request" }, { status: 400 });
@@ -103,7 +115,7 @@ export async function POST(request: Request) {
     .insert({ conversation_id: conversationId, role: "user", content: message });
   if (userMsgError) return NextResponse.json({ error: "Could not save your message" }, { status: 500 });
 
-  const prompt = buildPrompt({ bookTitle, sources, history, question: message });
+  const prompt = buildPrompt({ bookTitle, sources, history, question: message, mode: PROMPT_MODE });
   const convId = conversationId;
 
   const stream = createUIMessageStream<ChatUIMessage>({
@@ -113,16 +125,21 @@ export async function POST(request: Request) {
       }
       writer.write({ type: "data-citations", data: sources.map(toCitation) });
 
-      const result = streamText({
-        model: mistral(CHAT_MODEL),
-        system: prompt.system,
-        messages: prompt.messages,
-        temperature: 0.2,
-      });
-      writer.merge(result.toUIMessageStream<ChatUIMessage>());
+      let text: string;
+      if (USE_CLAUDE) {
+        text = await streamClaude(writer, prompt);
+      } else {
+        const result = streamText({
+          model: mistral(CHAT_MODEL),
+          system: prompt.system,
+          messages: prompt.messages,
+          temperature: TEMPERATURE,
+        });
+        writer.merge(result.toUIMessageStream<ChatUIMessage>());
+        text = await result.text;
+      }
 
       // Persist once the full answer is known; the stream stays open until then.
-      const text = await result.text;
       const [{ error: saveError }] = await Promise.all([
         supabase.from("messages").insert({
           conversation_id: convId,
@@ -142,4 +159,26 @@ export async function POST(request: Request) {
   });
 
   return createUIMessageStreamResponse({ stream });
+}
+
+/** Streams Claude's answer as the same UI message chunks streamText produces, and returns the full text. */
+async function streamClaude(
+  writer: UIMessageStreamWriter<ChatUIMessage>,
+  prompt: { system: string; messages: Anthropic.MessageParam[] },
+) {
+  const stream = new Anthropic().messages.stream({
+    model: CHAT_MODEL,
+    max_tokens: CLAUDE_MAX_TOKENS,
+    temperature: TEMPERATURE,
+    system: prompt.system,
+    messages: prompt.messages,
+  });
+  const id = crypto.randomUUID();
+  writer.write({ type: "start" });
+  writer.write({ type: "text-start", id });
+  stream.on("text", (delta) => writer.write({ type: "text-delta", id, delta }));
+  const message = await stream.finalMessage();
+  writer.write({ type: "text-end", id });
+  writer.write({ type: "finish" });
+  return message.content.flatMap((block) => (block.type === "text" ? [block.text] : [])).join("");
 }

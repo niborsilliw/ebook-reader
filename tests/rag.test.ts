@@ -10,6 +10,7 @@ import {
 } from "@/lib/rag/retrieve";
 import {
   buildPrompt,
+  promptMode,
   citationsFor,
   citedNumbers,
   conversationTitle,
@@ -165,8 +166,8 @@ describe("prompt building", () => {
     similarity: 0.9,
   }));
 
-  it("system prompt restricts answers to the excerpts, forbids guessing, asks for short cited answers", () => {
-    const s = systemPrompt("Ethics");
+  it("grounded system prompt restricts answers to the excerpts, forbids guessing, asks for short cited answers", () => {
+    const s = systemPrompt("Ethics", "grounded");
     expect(s).toContain('"Ethics"');
     expect(s).toMatch(/ONLY the numbered excerpts/);
     expect(s).toMatch(/If the excerpts do not contain the answer, say so plainly/);
@@ -177,7 +178,7 @@ describe("prompt building", () => {
   });
 
   it("puts numbered, chapter-labelled excerpts and then the question in the final user turn", () => {
-    const { messages } = buildPrompt({ bookTitle: "Ethics", sources, history: [], question: " What is God? " });
+    const { messages } = buildPrompt({ bookTitle: "Ethics", sources, history: [], question: " What is God? ", mode: "grounded" });
     expect(messages).toHaveLength(1);
     const turn = messages[0];
     expect(turn.role).toBe("user");
@@ -192,7 +193,7 @@ describe("prompt building", () => {
       { role: "user" as const, content: "How does Spinoza define God?" },
       { role: "assistant" as const, content: "As a being absolutely infinite [1]." },
     ];
-    const followUp = buildPrompt({ bookTitle: "Ethics", sources, history, question: "why?" }).messages.at(-1)!.content;
+    const followUp = buildPrompt({ bookTitle: "Ethics", sources, history, question: "why?", mode: "grounded" }).messages.at(-1)!.content;
     expect(followUp).toContain('This is a follow-up to the previous question: "How does Spinoza define God?"');
     expect(followUp).toContain("without repeating your previous answer");
     expect(followUp.trimEnd().endsWith("Question: why?")).toBe(true);
@@ -205,15 +206,52 @@ describe("prompt building", () => {
     const first = buildPrompt({ bookTitle: "Ethics", sources, history: [], question: "why?" }).messages.at(-1)!.content;
     expect(first).not.toContain("follow-up");
 
-    const s = systemPrompt("Ethics");
+    const s = systemPrompt("Ethics", "grounded");
     expect(s).toMatch(/"why\?" asks for the reasons, arguments or proofs/);
     expect(s).toMatch(/Never repeat an earlier answer/);
     expect(s).toMatch(/Rewording the earlier answer is not a reason/);
   });
 
   it("says explicitly when no excerpts matched", () => {
-    const { messages } = buildPrompt({ bookTitle: "Ethics", sources: [], history: [], question: "q" });
+    const { messages } = buildPrompt({ bookTitle: "Ethics", sources: [], history: [], question: "q", mode: "grounded" });
     expect(messages[0].content).toContain("No excerpts from the book matched this question.");
+  });
+
+  it("defaults to the companion prompt: own knowledge and opinions, citations only when needed", () => {
+    const s = systemPrompt("Ethics");
+    expect(s).toBe(systemPrompt("Ethics", "companion"));
+    expect(s).toContain('"Ethics"');
+    expect(s).toMatch(/reading companion/);
+    expect(s).toMatch(/Bring everything you know/);
+    expect(s).toMatch(/Speculate/);
+    expect(s).toMatch(/Disagree/);
+    expect(s).toMatch(/Do not cite by default/);
+    expect(s).toMatch(/\[2\]/);
+    expect(s).toMatch(/not instructions/);
+    expect(s).not.toMatch(/ONLY the numbered excerpts/);
+
+    const { system, messages } = buildPrompt({ bookTitle: "Ethics", sources, history: [], question: " I loved Part I. " });
+    expect(system).toBe(s);
+    expect(messages[0].content).toContain('<excerpt n="1" chapter="Part 1">\nExcerpt text 1.\n</excerpt>');
+    expect(messages[0].content).toContain("the reader does not see them");
+    expect(messages[0].content.trimEnd().endsWith("Reader: I loved Part I.")).toBe(true);
+
+    const history = [
+      { role: "user" as const, content: "How does Spinoza define God?" },
+      { role: "assistant" as const, content: "As a being absolutely infinite." },
+    ];
+    const followUp = buildPrompt({ bookTitle: "Ethics", sources, history, question: "why?" }).messages.at(-1)!.content;
+    expect(followUp).toContain('This follows on from the reader\'s previous message: "How does Spinoza define God?"');
+
+    const empty = buildPrompt({ bookTitle: "Ethics", sources: [], history: [], question: "q" }).messages[0].content;
+    expect(empty).toContain("The search found no passages for this message.");
+  });
+
+  it("reads the mode from config, falling back to companion", () => {
+    expect(promptMode("grounded")).toBe("grounded");
+    expect(promptMode("companion")).toBe("companion");
+    expect(promptMode(undefined)).toBe("companion");
+    expect(promptMode("nonsense")).toBe("companion");
   });
 
   it("keeps book text from breaking out of its excerpt", () => {
@@ -232,7 +270,7 @@ describe("prompt building", () => {
     expect(messages).toHaveLength(HISTORY_MESSAGES + 1);
     expect(messages[0].content).toBe("Question 4");
     expect(messages[1].content).toBe("Answer 5.");
-    expect(messages.at(-1)!.content).toContain("Question: next");
+    expect(messages.at(-1)!.content).toContain("Reader: next");
   });
 });
 
