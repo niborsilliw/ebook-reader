@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import ePub, { type Book, type Location, type Rendition } from "epubjs";
+import ePub, { EpubCFI, type Book, type Location, type Rendition } from "epubjs";
 import type { TocEntry } from "@/lib/epub/parse";
 import { createClient } from "@/lib/supabase/browser";
 import { BOOKS_BUCKET, locationsPath } from "@/lib/storage-paths";
@@ -32,6 +32,9 @@ const SERIF = `"Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua",
 export function EpubViewer({ bookId, userId, fileUrl, initialCfi, toc, onLocation, onReady }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const renditionRef = useRef<Rendition | null>(null);
+  // Set once the reader turns a page or jumps. Until then the location is just
+  // where opening the book landed, and must not overwrite the saved position.
+  const movedRef = useRef(false);
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
   const [edges, setEdges] = useState({ atStart: true, atEnd: false });
 
@@ -47,6 +50,7 @@ export function EpubViewer({ bookId, userId, fileUrl, initialCfi, toc, onLocatio
     let cancelled = false;
     let book: Book | null = null;
     let displayed = false;
+    movedRef.current = false;
     const supabase = createClient();
 
     // --- debounced position saving -------------------------------------
@@ -103,15 +107,27 @@ export function EpubViewer({ bookId, userId, fileUrl, initialCfi, toc, onLocatio
     };
 
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "ArrowRight" || e.key === "PageDown") void renditionRef.current?.next();
-      if (e.key === "ArrowLeft" || e.key === "PageUp") void renditionRef.current?.prev();
+      const forward = e.key === "ArrowRight" || e.key === "PageDown";
+      const back = e.key === "ArrowLeft" || e.key === "PageUp";
+      if (!forward && !back) return;
+      movedRef.current = true;
+      void (forward ? renditionRef.current?.next() : renditionRef.current?.prev());
     };
+
+    // epub.js measures the container once, when the rendition is attached; at
+    // 0×0 it can only show the start of a section. Wait until it has a size.
+    const waitForLayout = () =>
+      new Promise<void>((resolve) => {
+        const check = () => (cancelled || (el.clientWidth > 0 && el.clientHeight > 0) ? resolve() : requestAnimationFrame(check));
+        check();
+      });
 
     (async () => {
       try {
         const res = await fetch(fileUrl);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.arrayBuffer();
+        await waitForLayout();
         if (cancelled) return;
 
         book = ePub(data);
@@ -157,20 +173,39 @@ export function EpubViewer({ bookId, userId, fileUrl, initialCfi, toc, onLocatio
         rendition.on("relocated", (loc: Location) => {
           setEdges({ atStart: loc.atStart, atEnd: loc.atEnd });
           const r = report(loc);
+          if (!movedRef.current) return;
           schedule({ cfi: loc.start.cfi, percentage: r?.percentage ?? null, spine_href: safeDecode(loc.start.href) });
         });
         rendition.on("keyup", onKey); // key presses inside the book iframe
 
-        try {
-          await rendition.display(initialCfi ?? undefined);
-        } catch {
-          await rendition.display(); // saved CFI no longer valid
+        if (initialCfi) {
+          console.log("[reader] restoring saved position", initialCfi, `(container ${el.clientWidth}×${el.clientHeight})`);
+          try {
+            await rendition.display(initialCfi);
+            const landed = rendition.currentLocation() as unknown as Location | undefined;
+            const cfi = new EpubCFI();
+            const ok =
+              landed?.start != null &&
+              cfi.compare(landed.start.cfi, initialCfi) <= 0 &&
+              cfi.compare(initialCfi, landed.end.cfi) <= 0;
+            console[ok ? "log" : "warn"](
+              ok ? "[reader] restored position" : "[reader] restore landed on a page that doesn't contain the saved position",
+              `saved=${initialCfi} landed=${landed?.start?.cfi}…${landed?.end?.cfi} page=${landed?.start?.displayed?.page}/${landed?.start?.displayed?.total}`,
+            );
+          } catch (err) {
+            console.error("[reader] saved position could not be displayed; opening at the start", initialCfi, err);
+            await rendition.display();
+          }
+        } else {
+          console.log("[reader] no saved position; opening at the start");
+          await rendition.display();
         }
         if (cancelled) return;
         displayed = true;
         setStatus("ready");
         onReadyRef.current({
           goTo: (target) => {
+            movedRef.current = true;
             void rendition.display(target).catch(() => rendition.display(target.split("#")[0]));
           },
         });
@@ -239,9 +274,14 @@ export function EpubViewer({ bookId, userId, fileUrl, initialCfi, toc, onLocatio
     };
   }, [bookId, userId, fileUrl, initialCfi, toc]);
 
+  const turn = (side: "prev" | "next") => {
+    movedRef.current = true;
+    void renditionRef.current?.[side]();
+  };
+
   return (
     <div className="absolute inset-0 flex items-stretch">
-      <PageButton side="prev" disabled={status !== "ready" || edges.atStart} onClick={() => renditionRef.current?.prev()} />
+      <PageButton side="prev" disabled={status !== "ready" || edges.atStart} onClick={() => turn("prev")} />
       {/* min-w-0: epub.js sizes its container in pixels, which would otherwise
           stop this flex item shrinking to fit a phone screen. */}
       <div className="relative mx-auto h-full w-full max-w-[44rem] min-w-0 py-6 sm:px-8">
@@ -249,7 +289,7 @@ export function EpubViewer({ bookId, userId, fileUrl, initialCfi, toc, onLocatio
         {status === "loading" && <Overlay>Opening book…</Overlay>}
         {status === "error" && <Overlay>This book couldn’t be opened. Try reloading the page.</Overlay>}
       </div>
-      <PageButton side="next" disabled={status !== "ready" || edges.atEnd} onClick={() => renditionRef.current?.next()} />
+      <PageButton side="next" disabled={status !== "ready" || edges.atEnd} onClick={() => turn("next")} />
     </div>
   );
 }

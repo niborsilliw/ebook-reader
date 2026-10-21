@@ -26,11 +26,13 @@ export default async function ReadPage({ params }: { params: Promise<{ bookId: s
     .maybeSingle();
   if (!book) notFound();
 
-  const [{ data: signed }, { data: position }] = await Promise.all([
+  const [{ data: signed }, { data: position, error: positionError }] = await Promise.all([
     supabase.storage.from(BOOKS_BUCKET).createSignedUrl(book.file_path, SIGNED_URL_SECONDS),
     supabase.from("reading_positions").select("cfi").eq("book_id", bookId).maybeSingle(),
   ]);
   if (!signed?.signedUrl) throw new Error("Could not open this book's file");
+  // Opening at the start is a safe fallback, but a failed read shouldn't be silent.
+  if (positionError) console.error("load reading position failed", bookId, positionError.message);
 
   return (
     <ReaderShell
