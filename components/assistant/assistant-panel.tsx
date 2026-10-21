@@ -27,13 +27,21 @@ export function AssistantPanel({ bookId, bookTitle, ready, getCurrentHref, onCit
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [thread, setThread] = useState<Thread>(newThread);
   const [loadingThread, setLoadingThread] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const loadConversations = useCallback(async () => {
-    const { data } = await createClient()
+    const { data, error } = await createClient()
       .from("conversations")
       .select("id, title, updated_at")
       .eq("book_id", bookId)
       .order("updated_at", { ascending: false });
+    if (error) {
+      // Keep whatever list we had rather than blanking it.
+      console.error("load conversations failed", error.message);
+      setLoadError(`Couldn’t load your conversations: ${error.message}`);
+      return;
+    }
+    setLoadError(null);
     setConversations(data ?? []);
   }, [bookId]);
 
@@ -44,12 +52,19 @@ export function AssistantPanel({ bookId, bookTitle, ready, getCurrentHref, onCit
   async function openConversation(id: string) {
     if (!id) return setThread(newThread());
     setLoadingThread(true);
-    const { data } = await createClient()
+    const { data, error } = await createClient()
       .from("messages")
       .select("id, role, content, citations")
       .eq("conversation_id", id)
       .order("created_at");
     setLoadingThread(false);
+    if (error) {
+      // Stay on the current thread instead of opening an empty one.
+      console.error("load messages failed", error.message);
+      setLoadError(`Couldn’t load this conversation: ${error.message}`);
+      return;
+    }
+    setLoadError(null);
     setThread({
       key: id,
       conversationId: id,
@@ -102,6 +117,8 @@ export function AssistantPanel({ bookId, bookTitle, ready, getCurrentHref, onCit
           ✕
         </Button>
       </div>
+
+      {loadError && <p className="border-b px-4 py-2 text-sm text-destructive">{loadError}</p>}
 
       {!ready ? (
         <p className="p-4 text-sm text-muted-foreground">
