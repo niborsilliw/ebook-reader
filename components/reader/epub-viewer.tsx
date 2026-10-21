@@ -181,16 +181,27 @@ export function EpubViewer({ bookId, userId, fileUrl, initialCfi, toc, onLocatio
         if (initialCfi) {
           console.log("[reader] restoring saved position", initialCfi, `(container ${el.clientWidth}×${el.clientHeight})`);
           try {
-            await rendition.display(initialCfi);
-            const landed = rendition.currentLocation() as unknown as Location | undefined;
             const cfi = new EpubCFI();
-            const ok =
-              landed?.start != null &&
-              cfi.compare(landed.start.cfi, initialCfi) <= 0 &&
-              cfi.compare(initialCfi, landed.end.cfi) <= 0;
-            console[ok ? "log" : "warn"](
-              ok ? "[reader] restored position" : "[reader] restore landed on a page that doesn't contain the saved position",
-              `saved=${initialCfi} landed=${landed?.start?.cfi}…${landed?.end?.cfi} page=${landed?.start?.displayed?.page}/${landed?.start?.displayed?.total}`,
+            const landedOn = () => {
+              const loc = rendition.currentLocation() as unknown as Location | undefined;
+              const ok =
+                loc?.start != null && cfi.compare(loc.start.cfi, initialCfi) <= 0 && cfi.compare(initialCfi, loc.end.cfi) <= 0;
+              const where = `saved=${initialCfi} landed=${loc?.start?.cfi}…${loc?.end?.cfi} page=${loc?.start?.displayed?.page}/${loc?.start?.displayed?.total}`;
+              return { ok, where };
+            };
+            await rendition.display(initialCfi);
+            let landed = landedOn();
+            if (!landed.ok) {
+              // The first display() scrolls before the theme's styles have
+              // re-paginated the chapter, so a position past the unstyled page
+              // count is clamped to an earlier page. The layout is final now.
+              console.log("[reader] first display missed the saved page; displaying again", landed.where);
+              await rendition.display(initialCfi);
+              landed = landedOn();
+            }
+            console[landed.ok ? "log" : "warn"](
+              landed.ok ? "[reader] restored position" : "[reader] restore landed on a page that doesn't contain the saved position",
+              landed.where,
             );
           } catch (err) {
             console.error("[reader] saved position could not be displayed; opening at the start", initialCfi, err);
