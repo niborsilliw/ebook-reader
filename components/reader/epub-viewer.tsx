@@ -13,6 +13,7 @@ const LOCATION_CHARS = 1600; // granularity of epub.js progress locations
 // long-press text selection) is left alone.
 const SWIPE_MIN_PX = 50;
 const SWIPE_MAX_MS = 800;
+const RESIZE_SETTLE_MS = 150;
 
 export type ReaderApi = {
   /** Navigate to a spine href (as stored on chunks/TOC, fragment allowed) or a CFI. */
@@ -30,6 +31,7 @@ type Props = {
 };
 
 type Position = { cfi: string; percentage: number | null; spine_href: string };
+type Resizable = { resize(width: number, height: number, cfi?: string): void };
 
 const SERIF = `"Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif`;
 
@@ -37,9 +39,10 @@ export function EpubViewer({ bookId, userId, fileUrl, initialCfi, toc, onLocatio
   const rootRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const renditionRef = useRef<Rendition | null>(null);
-  // Set once the reader turns a page or jumps. Until then the location is just
-  // where opening the book landed, and must not overwrite the saved position.
-  const movedRef = useRef(false);
+  // Set when the reader turns a page or jumps, and consumed by the next
+  // "relocated". Other relocations (opening the book, re-paginating after a
+  // resize) don't move the reading position, so they aren't saved.
+  const userMoveRef = useRef(false);
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
   const [edges, setEdges] = useState({ atStart: true, atEnd: false });
 
@@ -55,7 +58,11 @@ export function EpubViewer({ bookId, userId, fileUrl, initialCfi, toc, onLocatio
     let cancelled = false;
     let book: Book | null = null;
     let displayed = false;
-    movedRef.current = false;
+    userMoveRef.current = false;
+    // Where the reader is: the restored position, then wherever they last moved
+    // to. Resizes re-display here; epub.js would otherwise re-display at the
+    // start of the visible page, drifting back a little on every resize.
+    let anchor: string | null = null;
     const supabase = createClient();
 
     // --- debounced position saving -------------------------------------
@@ -115,7 +122,7 @@ export function EpubViewer({ bookId, userId, fileUrl, initialCfi, toc, onLocatio
       const forward = e.key === "ArrowRight" || e.key === "PageDown";
       const back = e.key === "ArrowLeft" || e.key === "PageUp";
       if (!forward && !back) return;
-      movedRef.current = true;
+      userMoveRef.current = true;
       void (forward ? renditionRef.current?.next() : renditionRef.current?.prev());
     };
 
@@ -136,7 +143,7 @@ export function EpubViewer({ bookId, userId, fileUrl, initialCfi, toc, onLocatio
       const dy = t.clientY - start.y;
       if (Math.abs(dx) < SWIPE_MIN_PX || Math.abs(dx) < 1.5 * Math.abs(dy) || e.timeStamp - start.t > SWIPE_MAX_MS) return;
       if (e.view?.getSelection()?.isCollapsed === false) return; // dragging a text selection
-      movedRef.current = true;
+      userMoveRef.current = true;
       void (dx < 0 ? renditionRef.current?.next() : renditionRef.current?.prev());
     };
     const root = rootRef.current;
@@ -202,7 +209,9 @@ export function EpubViewer({ bookId, userId, fileUrl, initialCfi, toc, onLocatio
         rendition.on("relocated", (loc: Location) => {
           setEdges({ atStart: loc.atStart, atEnd: loc.atEnd });
           const r = report(loc);
-          if (!movedRef.current) return;
+          if (!userMoveRef.current) return;
+          userMoveRef.current = false;
+          anchor = loc.start.cfi;
           schedule({ cfi: loc.start.cfi, percentage: r?.percentage ?? null, spine_href: safeDecode(loc.start.href) });
         });
         rendition.on("keyup", onKey); // key presses inside the book iframe
@@ -230,6 +239,7 @@ export function EpubViewer({ bookId, userId, fileUrl, initialCfi, toc, onLocatio
               await rendition.display(initialCfi);
               landed = landedOn();
             }
+            if (landed.ok) anchor = initialCfi;
             console[landed.ok ? "log" : "warn"](
               landed.ok ? "[reader] restored position" : "[reader] restore landed on a page that doesn't contain the saved position",
               landed.where,
@@ -247,7 +257,7 @@ export function EpubViewer({ bookId, userId, fileUrl, initialCfi, toc, onLocatio
         setStatus("ready");
         onReadyRef.current({
           goTo: (target) => {
-            movedRef.current = true;
+            userMoveRef.current = true;
             void rendition.display(target).catch(() => rendition.display(target.split("#")[0]));
           },
         });
@@ -290,16 +300,18 @@ export function EpubViewer({ bookId, userId, fileUrl, initialCfi, toc, onLocatio
     };
     window.addEventListener("keyup", onWindowKey);
 
-    // Re-lay out pages when the container changes size (window resize or the
-    // assistant panel opening/closing).
-    let frame = 0;
+    // Re-lay out pages when the container changes size (window resize or a
+    // panel opening/closing). Re-paginating is expensive, so wait until the
+    // size settles rather than doing it on every frame of a panel animation.
+    let resizeTimer: ReturnType<typeof setTimeout> | undefined;
     const observer = new ResizeObserver(() => {
-      cancelAnimationFrame(frame);
-      frame = requestAnimationFrame(() => {
+      clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(() => {
         const r = renditionRef.current;
         // epub.js throws if asked to resize before its first page is laid out.
-        if (r && displayed) r.resize(el.clientWidth, el.clientHeight);
-      });
+        // resize()'s optional CFI to re-display at is missing from epub.js's types.
+        if (r && displayed) (r as unknown as Resizable).resize(el.clientWidth, el.clientHeight, anchor ?? undefined);
+      }, RESIZE_SETTLE_MS);
     });
     observer.observe(el);
 
@@ -307,7 +319,7 @@ export function EpubViewer({ bookId, userId, fileUrl, initialCfi, toc, onLocatio
       cancelled = true;
       flush();
       observer.disconnect();
-      cancelAnimationFrame(frame);
+      clearTimeout(resizeTimer);
       document.removeEventListener("visibilitychange", onHide);
       window.removeEventListener("pagehide", flush);
       window.removeEventListener("keyup", onWindowKey);
@@ -319,7 +331,7 @@ export function EpubViewer({ bookId, userId, fileUrl, initialCfi, toc, onLocatio
   }, [bookId, userId, fileUrl, initialCfi, toc]);
 
   const turn = (side: "prev" | "next") => {
-    movedRef.current = true;
+    userMoveRef.current = true;
     void renditionRef.current?.[side]();
   };
 

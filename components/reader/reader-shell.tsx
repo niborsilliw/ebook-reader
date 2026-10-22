@@ -2,13 +2,14 @@
 
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { TocEntry } from "@/lib/epub/parse";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { TocSheet } from "./toc-sheet";
 import type { ReaderApi } from "./epub-viewer";
 import { AssistantPanel } from "@/components/assistant/assistant-panel";
+import { NotesPanel } from "@/components/notes/notes-panel";
 
 // epub.js touches `window` at import time.
 const EpubViewer = dynamic(() => import("./epub-viewer").then((m) => m.EpubViewer), {
@@ -29,6 +30,7 @@ type Props = {
 
 export function ReaderShell({ bookId, userId, title, author, fileUrl, initialCfi, toc, ready }: Props) {
   const [panelOpen, setPanelOpen] = useState(false);
+  const [notesOpen, setNotesOpen] = useState(false);
   const [chapter, setChapter] = useState<string | null>(null);
   const [percent, setPercent] = useState<number | null>(null);
   const api = useRef<ReaderApi | null>(null);
@@ -40,12 +42,66 @@ export function ReaderShell({ bookId, userId, title, author, fileUrl, initialCfi
     currentHref.current = loc.href;
   }, []);
 
+  // Below lg there isn't room for the page between two docked panels, so
+  // opening one closes the other.
+  const narrow = () => !window.matchMedia("(min-width: 1024px)").matches;
+  const toggleNotes = () => {
+    if (!notesOpen && narrow()) setPanelOpen(false);
+    setNotesOpen((o) => !o);
+  };
+  const toggleAssistant = () => {
+    if (!panelOpen && narrow()) setNotesOpen(false);
+    setPanelOpen((o) => !o);
+  };
+
+  useEffect(() => {
+    if (!notesOpen) return;
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setNotesOpen(false);
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [notesOpen]);
+
   return (
     <div className="flex h-[calc(100dvh-3rem)] bg-[#fbf9f4] text-[#1f1d1a]">
+      {/* Notes: docked on the left from sm up (the width animates, pushing the
+          page over), sliding over the page on phones. */}
+      <aside
+        id="notes-panel"
+        aria-label="Notes and highlights"
+        inert={!notesOpen}
+        className={cn(
+          "shrink-0 overflow-hidden bg-[#fbf9f4] transition-[width,translate,visibility] duration-200 ease-out motion-reduce:transition-none",
+          "max-sm:absolute max-sm:inset-x-0 max-sm:top-12 max-sm:bottom-0 max-sm:z-30 max-sm:w-[85%] max-sm:max-w-[20rem] max-sm:shadow-xl",
+          notesOpen ? "border-r border-[#e7e2d8] sm:w-[20rem]" : "invisible max-sm:-translate-x-full sm:w-0",
+        )}
+      >
+        {/* Fixed width so the contents don't reflow while the panel animates. */}
+        <div className="h-full w-full sm:w-[20rem]">
+          <NotesPanel onClose={() => setNotesOpen(false)} />
+        </div>
+      </aside>
+      {notesOpen && (
+        <button
+          type="button"
+          aria-label="Close notes"
+          className="absolute inset-x-0 top-12 bottom-0 z-20 bg-black/15 sm:hidden"
+          onClick={() => setNotesOpen(false)}
+        />
+      )}
+
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="flex items-center gap-2 px-4 py-2 text-sm">
           <Button variant="ghost" size="sm" nativeButton={false} render={<Link href="/library" />}>
             ← Library
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            aria-expanded={notesOpen}
+            aria-controls="notes-panel"
+            onClick={toggleNotes}
+          >
+            Notes
           </Button>
           <div className="min-w-0 flex-1 text-center">
             <p className="truncate font-serif text-[0.95rem] italic">{title}</p>
@@ -57,7 +113,7 @@ export function ReaderShell({ bookId, userId, title, author, fileUrl, initialCfi
             size="sm"
             aria-expanded={panelOpen}
             aria-controls="assistant-panel"
-            onClick={() => setPanelOpen((o) => !o)}
+            onClick={toggleAssistant}
           >
             Assistant
           </Button>

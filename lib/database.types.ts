@@ -39,6 +39,41 @@ export type Database = {
   }
   public: {
     Tables: {
+      bookmarks: {
+        Row: {
+          book_id: string
+          cfi: string
+          created_at: string
+          id: string
+          label: string | null
+          user_id: string
+        }
+        Insert: {
+          book_id: string
+          cfi: string
+          created_at?: string
+          id?: string
+          label?: string | null
+          user_id?: string
+        }
+        Update: {
+          book_id?: string
+          cfi?: string
+          created_at?: string
+          id?: string
+          label?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bookmarks_book_id_fkey"
+            columns: ["book_id"]
+            isOneToOne: false
+            referencedRelation: "books"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       books: {
         Row: {
           author: string | null
@@ -174,6 +209,50 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "conversations_book_id_fkey"
+            columns: ["book_id"]
+            isOneToOne: false
+            referencedRelation: "books"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      highlights: {
+        Row: {
+          book_id: string
+          cfi_range: string
+          chapter_title: string | null
+          color: string
+          created_at: string
+          id: string
+          note: string | null
+          text: string
+          user_id: string
+        }
+        Insert: {
+          book_id: string
+          cfi_range: string
+          chapter_title?: string | null
+          color?: string
+          created_at?: string
+          id?: string
+          note?: string | null
+          text: string
+          user_id?: string
+        }
+        Update: {
+          book_id?: string
+          cfi_range?: string
+          chapter_title?: string | null
+          color?: string
+          created_at?: string
+          id?: string
+          note?: string | null
+          text?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "highlights_book_id_fkey"
             columns: ["book_id"]
             isOneToOne: false
             referencedRelation: "books"
