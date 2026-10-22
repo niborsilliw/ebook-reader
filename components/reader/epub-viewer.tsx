@@ -9,6 +9,10 @@ import { IMAGE_PAGE_STYLES, markImagePage } from "@/lib/reader/image-pages";
 
 const SAVE_DEBOUNCE_MS = 2000;
 const LOCATION_CHARS = 1600; // granularity of epub.js progress locations
+// A swipe is a quick, mostly horizontal drag; anything else (scrolls, taps,
+// long-press text selection) is left alone.
+const SWIPE_MIN_PX = 50;
+const SWIPE_MAX_MS = 800;
 
 export type ReaderApi = {
   /** Navigate to a spine href (as stored on chunks/TOC, fragment allowed) or a CFI. */
@@ -30,6 +34,7 @@ type Position = { cfi: string; percentage: number | null; spine_href: string };
 const SERIF = `"Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif`;
 
 export function EpubViewer({ bookId, userId, fileUrl, initialCfi, toc, onLocation, onReady }: Props) {
+  const rootRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const renditionRef = useRef<Rendition | null>(null);
   // Set once the reader turns a page or jumps. Until then the location is just
@@ -114,6 +119,30 @@ export function EpubViewer({ bookId, userId, fileUrl, initialCfi, toc, onLocatio
       void (forward ? renditionRef.current?.next() : renditionRef.current?.prev());
     };
 
+    // --- swipe to turn pages on touch screens ----------------------------
+    // Touches on the page land in the epub.js iframe (forwarded by the
+    // rendition); touches on the margins land on the root element.
+    let swipeStart: { x: number; y: number; t: number } | null = null;
+    const onTouchStart = (e: TouchEvent) => {
+      const t = e.touches[0];
+      swipeStart = e.touches.length === 1 ? { x: t.clientX, y: t.clientY, t: e.timeStamp } : null;
+    };
+    const onTouchEnd = (e: TouchEvent) => {
+      const start = swipeStart;
+      swipeStart = null;
+      const t = e.changedTouches[0];
+      if (!start || !t || e.touches.length > 0) return;
+      const dx = t.clientX - start.x;
+      const dy = t.clientY - start.y;
+      if (Math.abs(dx) < SWIPE_MIN_PX || Math.abs(dx) < 1.5 * Math.abs(dy) || e.timeStamp - start.t > SWIPE_MAX_MS) return;
+      if (e.view?.getSelection()?.isCollapsed === false) return; // dragging a text selection
+      movedRef.current = true;
+      void (dx < 0 ? renditionRef.current?.next() : renditionRef.current?.prev());
+    };
+    const root = rootRef.current;
+    root?.addEventListener("touchstart", onTouchStart, { passive: true });
+    root?.addEventListener("touchend", onTouchEnd);
+
     // epub.js measures the container once, when the rendition is attached; at
     // 0×0 it can only show the start of a section. Wait until it has a size.
     const waitForLayout = () =>
@@ -177,6 +206,8 @@ export function EpubViewer({ bookId, userId, fileUrl, initialCfi, toc, onLocatio
           schedule({ cfi: loc.start.cfi, percentage: r?.percentage ?? null, spine_href: safeDecode(loc.start.href) });
         });
         rendition.on("keyup", onKey); // key presses inside the book iframe
+        rendition.on("touchstart", onTouchStart);
+        rendition.on("touchend", onTouchEnd);
 
         if (initialCfi) {
           console.log("[reader] restoring saved position", initialCfi, `(container ${el.clientWidth}×${el.clientHeight})`);
@@ -280,6 +311,8 @@ export function EpubViewer({ bookId, userId, fileUrl, initialCfi, toc, onLocatio
       document.removeEventListener("visibilitychange", onHide);
       window.removeEventListener("pagehide", flush);
       window.removeEventListener("keyup", onWindowKey);
+      root?.removeEventListener("touchstart", onTouchStart);
+      root?.removeEventListener("touchend", onTouchEnd);
       renditionRef.current = null;
       book?.destroy();
     };
@@ -291,7 +324,7 @@ export function EpubViewer({ bookId, userId, fileUrl, initialCfi, toc, onLocatio
   };
 
   return (
-    <div className="absolute inset-0 flex items-stretch">
+    <div ref={rootRef} className="absolute inset-0 flex items-stretch">
       <PageButton side="prev" disabled={status !== "ready" || edges.atStart} onClick={() => turn("prev")} />
       {/* min-w-0: epub.js sizes its container in pixels, which would otherwise
           stop this flex item shrinking to fit a phone screen. */}
@@ -312,11 +345,13 @@ function PageButton({ side, disabled, onClick }: { side: "prev" | "next"; disabl
       aria-label={side === "prev" ? "Previous page" : "Next page"}
       disabled={disabled}
       onClick={onClick}
-      className="group flex w-7 shrink-0 items-center justify-center text-2xl text-[#b3ab9d] transition-colors hover:text-[#1f1d1a] disabled:pointer-events-none disabled:opacity-0 sm:w-20"
+      className="group flex w-7 shrink-0 items-center justify-center text-[#8c8478] transition-colors hover:text-[#1f1d1a] disabled:pointer-events-none disabled:opacity-0 sm:w-20"
     >
-      <span aria-hidden className="font-serif">
-        {side === "prev" ? "‹" : "›"}
-      </span>
+      {/* An SVG rather than a ‹ › glyph: the glyph rendered at ~8px and was
+          too faint to find on tablets. */}
+      <svg aria-hidden viewBox="0 0 24 24" className="size-5 sm:size-7" fill="none" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round">
+        <path d={side === "prev" ? "M15 5l-7 7 7 7" : "M9 5l7 7-7 7"} />
+      </svg>
     </button>
   );
 }
