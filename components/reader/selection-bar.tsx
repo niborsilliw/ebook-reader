@@ -2,6 +2,7 @@
 
 import { useLayoutEffect, useRef, useState } from "react";
 import type { BookSelection } from "./epub-viewer";
+import { HIGHLIGHT_COLORS, type HighlightColor } from "@/lib/notes/colors";
 
 const GAP = 8; // between the bar and the selection
 const EDGE = 8; // minimum distance from the screen edges
@@ -9,7 +10,7 @@ const EDGE = 8; // minimum distance from the screen edges
 type Props = {
   selection: BookSelection;
   busy: boolean;
-  onHighlight: () => void;
+  onHighlight: (color: HighlightColor) => void;
   onBookmark: () => void;
 };
 
@@ -51,10 +52,21 @@ export function SelectionBar({ selection, busy, onHighlight, onBookmark }: Props
       // Keep the selection: a mousedown here would otherwise clear it first.
       onMouseDown={(e) => e.preventDefault()}
     >
-      <BarButton disabled={busy} onClick={onHighlight}>
-        <span aria-hidden className="mr-1.5 inline-block size-2.5 rounded-full bg-[#f5d76e]" />
-        Highlight
-      </BarButton>
+      <div role="group" aria-label="Highlight" className="flex items-center gap-1 pr-1.5 pl-2.5">
+        {HIGHLIGHT_COLORS.map((c) => (
+          <button
+            key={c.id}
+            type="button"
+            disabled={busy}
+            onClick={() => onHighlight(c.id)}
+            aria-label={`Highlight ${c.label.toLowerCase()}`}
+            title={`Highlight ${c.label.toLowerCase()}`}
+            className="grid size-8 place-items-center rounded-full hover:bg-white/10 disabled:opacity-50"
+          >
+            <span aria-hidden className="size-4 rounded-full ring-1 ring-white/30" style={{ background: c.fill }} />
+          </button>
+        ))}
+      </div>
       <span aria-hidden className="w-px bg-white/15" />
       <BarButton disabled={busy} onClick={onBookmark}>
         Bookmark

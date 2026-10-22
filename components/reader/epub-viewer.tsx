@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import ePub, { EpubCFI, type Book, type Location, type Rendition } from "epubjs";
 import type { TocEntry } from "@/lib/epub/parse";
 import type { Highlight } from "@/lib/notes/types";
+import { colorFill } from "@/lib/notes/colors";
 import { createClient } from "@/lib/supabase/browser";
 import { BOOKS_BUCKET, locationsPath } from "@/lib/storage-paths";
 import { IMAGE_PAGE_STYLES, markImagePage } from "@/lib/reader/image-pages";
@@ -15,7 +16,6 @@ const LOCATION_CHARS = 1600; // granularity of epub.js progress locations
 const SWIPE_MIN_PX = 50;
 const SWIPE_MAX_MS = 800;
 const RESIZE_SETTLE_MS = 150;
-const HIGHLIGHT_STYLE = { fill: "#f5d76e", "fill-opacity": "0.45", "mix-blend-mode": "multiply" };
 
 /** A text selection in the book, positioned in the page's (not the iframe's) viewport. */
 export type BookSelection = {
@@ -41,6 +41,7 @@ type Props = {
   toc: TocEntry[];
   highlights: Highlight[];
   onSelection: (selection: BookSelection | null) => void;
+  onHighlightClick: (id: string) => void;
   onLocation: (loc: { chapter: string | null; percentage: number | null; href: string }) => void;
   onReady: (api: ReaderApi) => void;
 };
@@ -50,7 +51,7 @@ type Resizable = { resize(width: number, height: number, cfi?: string): void };
 
 const SERIF = `"Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif`;
 
-export function EpubViewer({ bookId, userId, fileUrl, initialCfi, toc, highlights, onSelection, onLocation, onReady }: Props) {
+export function EpubViewer({ bookId, userId, fileUrl, initialCfi, toc, highlights, onSelection, onHighlightClick, onLocation, onReady }: Props) {
   const rootRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const renditionRef = useRef<Rendition | null>(null);
@@ -65,6 +66,8 @@ export function EpubViewer({ bookId, userId, fileUrl, initialCfi, toc, highlight
   const onLocationRef = useRef(onLocation);
   const onReadyRef = useRef(onReady);
   const onSelectionRef = useRef(onSelection);
+  const onHighlightClickRef = useRef(onHighlightClick);
+  onHighlightClickRef.current = onHighlightClick;
   onLocationRef.current = onLocation;
   onReadyRef.current = onReady;
   onSelectionRef.current = onSelection;
@@ -393,17 +396,25 @@ export function EpubViewer({ bookId, userId, fileUrl, initialCfi, toc, highlight
     const rendition = renditionRef.current;
     if (status !== "ready" || !rendition) return;
     const drawn = drawnRef.current;
-    const wanted = new Map(highlights.map((h) => [h.id, h.cfi_range]));
+    const wanted = new Map(highlights.map((h) => [h.id, h]));
     for (const [id, cfi] of drawn) {
       if (!wanted.has(id)) {
         rendition.annotations.remove(cfi, "highlight");
         drawn.delete(id);
       }
     }
-    for (const [id, cfi] of wanted) {
+    for (const [id, h] of wanted) {
       if (drawn.has(id)) continue;
-      rendition.annotations.highlight(cfi, { id }, undefined, "reader-highlight", HIGHLIGHT_STYLE);
-      drawn.set(id, cfi);
+      // epub.js calls this on touchstart as well as click; only a click (or a
+      // tap, which ends in one) means "open this highlight", not a swipe.
+      const onClick = (e: Event) => e.type === "click" && onHighlightClickRef.current(id);
+      // One class only: epub.js adds it with classList.add().
+      rendition.annotations.highlight(h.cfi_range, { id }, onClick, `reader-highlight-${h.color}`, {
+        fill: colorFill(h.color),
+        "fill-opacity": "0.45",
+        "mix-blend-mode": "multiply",
+      });
+      drawn.set(id, h.cfi_range);
     }
   }, [highlights, status]);
 

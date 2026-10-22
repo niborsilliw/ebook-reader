@@ -14,6 +14,7 @@ import { AssistantPanel } from "@/components/assistant/assistant-panel";
 import { NotesPanel } from "@/components/notes/notes-panel";
 import { createClient } from "@/lib/supabase/browser";
 import { BOOKMARK_COLUMNS, HIGHLIGHT_COLUMNS, type Bookmark, type Highlight } from "@/lib/notes/types";
+import type { HighlightColor } from "@/lib/notes/colors";
 
 // epub.js touches `window` at import time.
 const EpubViewer = dynamic(() => import("./epub-viewer").then((m) => m.EpubViewer), {
@@ -54,6 +55,8 @@ export function ReaderShell({
   const [bookmarks, setBookmarks] = useState(initialBookmarks);
   const [selection, setSelection] = useState<BookSelection | null>(null);
   const [saving, setSaving] = useState(false);
+  const [activeNote, setActiveNote] = useState<string | null>(null); // open item in the notes panel
+  const [focusNote, setFocusNote] = useState(0);
   const [chapter, setChapter] = useState<string | null>(null);
   const [percent, setPercent] = useState<number | null>(null);
   const api = useRef<ReaderApi | null>(null);
@@ -82,11 +85,11 @@ export function ReaderShell({
     setSelection(null);
   };
 
-  async function saveHighlight(sel: BookSelection) {
+  async function saveHighlight(sel: BookSelection, color: HighlightColor) {
     setSaving(true);
     const { data, error } = await createClient()
       .from("highlights")
-      .insert({ book_id: bookId, cfi_range: sel.cfiRange, text: sel.text, chapter_title: sel.chapter })
+      .insert({ book_id: bookId, cfi_range: sel.cfiRange, text: sel.text, chapter_title: sel.chapter, color })
       .select(HIGHLIGHT_COLUMNS)
       .single();
     setSaving(false);
@@ -126,11 +129,92 @@ export function ReaderShell({
     done(sel);
   }
 
-  const jumpTo = (cfi: string) => {
+  // Opening an item jumps to it and shows its note field and delete button.
+  // The panel stays open (on phones too) so the note can be written.
+  const activate = ({ id, cfi }: { id: string; cfi: string }) => {
+    setActiveNote(id);
     api.current?.goTo(cfi);
-    // On phones the panel covers the page; get out of the way.
-    if (!window.matchMedia("(min-width: 640px)").matches) setNotesOpen(false);
   };
+
+  // Tapping a highlight in the text opens its note in the panel.
+  const openHighlight = (id: string) => {
+    if (narrow()) setPanelOpen(false);
+    setNotesOpen(true);
+    setActiveNote(id);
+    setFocusNote((n) => n + 1);
+  };
+
+  async function saveNote(id: string, note: string | null) {
+    const { error } = await createClient().from("highlights").update({ note }).eq("id", id);
+    if (error) {
+      console.error("save note failed", error.message);
+      toast.error(`Couldn’t save the note: ${error.message}`);
+      return false;
+    }
+    setHighlights((list) => list.map((h) => (h.id === id ? { ...h, note } : h)));
+    return true;
+  }
+
+  // Deletes go through at once (the highlight disappears from the page too),
+  // with an Undo that puts the same row back.
+  async function deleteHighlight(h: Highlight) {
+    setHighlights((list) => list.filter((x) => x.id !== h.id));
+    const { error } = await createClient().from("highlights").delete().eq("id", h.id);
+    if (error) {
+      console.error("delete highlight failed", error.message);
+      setHighlights((list) => [...list, h]);
+      toast.error(`Couldn’t delete the highlight: ${error.message}`);
+      return;
+    }
+    toast("Highlight deleted", {
+      action: {
+        label: "Undo",
+        onClick: async () => {
+          const { data, error } = await createClient()
+            .from("highlights")
+            .insert({
+              id: h.id,
+              book_id: bookId,
+              cfi_range: h.cfi_range,
+              text: h.text,
+              note: h.note,
+              color: h.color,
+              chapter_title: h.chapter_title,
+              created_at: h.created_at,
+            })
+            .select(HIGHLIGHT_COLUMNS)
+            .single();
+          if (error || !data) return void toast.error(`Couldn’t restore the highlight${error ? `: ${error.message}` : ""}`);
+          setHighlights((list) => [...list, data]);
+        },
+      },
+    });
+  }
+
+  async function deleteBookmark(b: Bookmark) {
+    setBookmarks((list) => list.filter((x) => x.id !== b.id));
+    const { error } = await createClient().from("bookmarks").delete().eq("id", b.id);
+    if (error) {
+      console.error("delete bookmark failed", error.message);
+      setBookmarks((list) => [...list, b]);
+      toast.error(`Couldn’t delete the bookmark: ${error.message}`);
+      return;
+    }
+    toast("Bookmark deleted", {
+      action: {
+        label: "Undo",
+        onClick: async () => {
+          const { data, error } = await createClient()
+            .from("bookmarks")
+            .insert({ id: b.id, book_id: bookId, cfi: b.cfi, label: b.label, created_at: b.created_at })
+            .select(BOOKMARK_COLUMNS)
+            .single();
+          if (error || !data) return void toast.error(`Couldn’t restore the bookmark${error ? `: ${error.message}` : ""}`);
+          setBookmarks((list) => [...list, data]);
+        },
+      },
+    });
+  }
 
   useEffect(() => {
     if (!notesOpen) return;
@@ -148,14 +232,28 @@ export function ReaderShell({
         aria-label="Notes and highlights"
         inert={!notesOpen}
         className={cn(
-          "shrink-0 overflow-hidden bg-[#fbf9f4] transition-[width,translate,visibility] duration-200 ease-out motion-reduce:transition-none",
+          "shrink-0 overflow-hidden bg-[#fbf9f4] duration-200 ease-out motion-reduce:transition-none",
           "max-sm:absolute max-sm:inset-x-0 max-sm:top-12 max-sm:bottom-0 max-sm:z-30 max-sm:w-[85%] max-sm:max-w-[20rem] max-sm:shadow-xl",
-          notesOpen ? "border-r border-[#e7e2d8] sm:w-[20rem]" : "invisible max-sm:-translate-x-full sm:w-0",
+          // Visible at once when opening (so its note field can take focus), but
+          // only hidden once the closing slide has finished.
+          notesOpen
+            ? "border-r border-[#e7e2d8] transition-[width,translate] sm:w-[20rem]"
+            : "invisible transition-[width,translate,visibility] max-sm:-translate-x-full sm:w-0",
         )}
       >
         {/* Fixed width so the contents don't reflow while the panel animates. */}
         <div className="h-full w-full sm:w-[20rem]">
-          <NotesPanel highlights={highlights} bookmarks={bookmarks} onJump={jumpTo} onClose={() => setNotesOpen(false)} />
+          <NotesPanel
+            highlights={highlights}
+            bookmarks={bookmarks}
+            activeId={activeNote}
+            focusNote={focusNote}
+            onActivate={activate}
+            onSaveNote={saveNote}
+            onDeleteHighlight={(h) => void deleteHighlight(h)}
+            onDeleteBookmark={(b) => void deleteBookmark(b)}
+            onClose={() => setNotesOpen(false)}
+          />
         </div>
       </aside>
       {notesOpen && (
@@ -206,6 +304,7 @@ export function ReaderShell({
             toc={toc}
             highlights={highlights}
             onSelection={setSelection}
+            onHighlightClick={openHighlight}
             onLocation={onLocation}
             onReady={(r) => (api.current = r)}
           />
@@ -215,7 +314,7 @@ export function ReaderShell({
           <SelectionBar
             selection={selection}
             busy={saving}
-            onHighlight={() => void saveHighlight(selection)}
+            onHighlight={(color) => void saveHighlight(selection, color)}
             onBookmark={() => void saveBookmark(selection)}
           />
         )}

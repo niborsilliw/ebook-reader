@@ -104,3 +104,13 @@ describe("highlights and bookmarks RLS", () => {
     );
   });
 });
+
+describe("highlight colours", () => {
+  it("match the colours the database allows", async () => {
+    const { readFileSync } = await import("node:fs");
+    const { HIGHLIGHT_COLORS } = await import("@/lib/notes/colors");
+    const sql = readFileSync("supabase/migrations/0002_notes.sql", "utf8");
+    const allowed = sql.match(/color in \(([^)]*)\)/)![1].match(/'(\w+)'/g)!.map((s) => s.slice(1, -1));
+    expect(HIGHLIGHT_COLORS.map((c) => c.id)).toEqual(allowed);
+  });
+});
