@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import ePub, { EpubCFI, type Book, type Location, type Rendition } from "epubjs";
 import type { TocEntry } from "@/lib/epub/parse";
+import type { Highlight } from "@/lib/notes/types";
 import { createClient } from "@/lib/supabase/browser";
 import { BOOKS_BUCKET, locationsPath } from "@/lib/storage-paths";
 import { IMAGE_PAGE_STYLES, markImagePage } from "@/lib/reader/image-pages";
@@ -14,10 +15,22 @@ const LOCATION_CHARS = 1600; // granularity of epub.js progress locations
 const SWIPE_MIN_PX = 50;
 const SWIPE_MAX_MS = 800;
 const RESIZE_SETTLE_MS = 150;
+const HIGHLIGHT_STYLE = { fill: "#f5d76e", "fill-opacity": "0.45", "mix-blend-mode": "multiply" };
+
+/** A text selection in the book, positioned in the page's (not the iframe's) viewport. */
+export type BookSelection = {
+  cfiRange: string;
+  text: string;
+  chapter: string | null;
+  rect: { left: number; right: number; top: number; bottom: number };
+  clear: () => void;
+};
 
 export type ReaderApi = {
-  /** Navigate to a spine href (as stored on chunks/TOC, fragment allowed) or a CFI. */
+  /** Navigate to a spine href (as stored on chunks/TOC, fragment allowed) or a CFI / CFI range. */
   goTo: (target: string) => void;
+  /** Start of the page being read, and its chapter. */
+  currentLocation: () => { cfi: string; chapter: string | null } | null;
 };
 
 type Props = {
@@ -26,6 +39,8 @@ type Props = {
   fileUrl: string;
   initialCfi: string | null;
   toc: TocEntry[];
+  highlights: Highlight[];
+  onSelection: (selection: BookSelection | null) => void;
   onLocation: (loc: { chapter: string | null; percentage: number | null; href: string }) => void;
   onReady: (api: ReaderApi) => void;
 };
@@ -35,7 +50,7 @@ type Resizable = { resize(width: number, height: number, cfi?: string): void };
 
 const SERIF = `"Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif`;
 
-export function EpubViewer({ bookId, userId, fileUrl, initialCfi, toc, onLocation, onReady }: Props) {
+export function EpubViewer({ bookId, userId, fileUrl, initialCfi, toc, highlights, onSelection, onLocation, onReady }: Props) {
   const rootRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const renditionRef = useRef<Rendition | null>(null);
@@ -49,8 +64,10 @@ export function EpubViewer({ bookId, userId, fileUrl, initialCfi, toc, onLocatio
   // Latest callbacks without re-running the effect.
   const onLocationRef = useRef(onLocation);
   const onReadyRef = useRef(onReady);
+  const onSelectionRef = useRef(onSelection);
   onLocationRef.current = onLocation;
   onReadyRef.current = onReady;
+  onSelectionRef.current = onSelection;
 
   useEffect(() => {
     const el = containerRef.current;
@@ -175,6 +192,7 @@ export function EpubViewer({ bookId, userId, fileUrl, initialCfi, toc, onLocatio
           allowScriptedContent: false, // book content is untrusted
         });
         renditionRef.current = rendition;
+        drawnRef.current.clear();
 
         rendition.themes.default({
           // Keep book content inside the page column on narrow screens.
@@ -204,10 +222,34 @@ export function EpubViewer({ bookId, userId, fileUrl, initialCfi, toc, onLocatio
         // Covers and other single-picture pages: centred at 60% width instead of full-bleed.
         rendition.hooks.content.register((contents: { document: Document }) => {
           markImagePage(contents.document);
+          // Hide the selection actions once the selection is gone (tap elsewhere).
+          contents.document.addEventListener("selectionchange", () => {
+            if (contents.document.getSelection()?.isCollapsed !== false) onSelectionRef.current(null);
+          });
+        });
+
+        rendition.on("selected", (cfiRange: string, contents: { window: Window; sectionIndex?: number }) => {
+          const selection = contents.window.getSelection();
+          const text = selection?.toString().trim() ?? "";
+          if (!selection || selection.rangeCount === 0 || !text) return onSelectionRef.current(null);
+          // Range rects are relative to the iframe; shift them into the page.
+          const r = selection.getRangeAt(0).getBoundingClientRect();
+          const frame = (contents.window.frameElement as HTMLElement | null)?.getBoundingClientRect();
+          const dx = frame?.left ?? 0;
+          const dy = frame?.top ?? 0;
+          const index = (rendition.currentLocation() as unknown as Location | undefined)?.start?.index ?? 0;
+          onSelectionRef.current({
+            cfiRange,
+            text,
+            chapter: chapterFor(book?.spine.get(cfiRange)?.index ?? index),
+            rect: { left: r.left + dx, right: r.right + dx, top: r.top + dy, bottom: r.bottom + dy },
+            clear: () => contents.window.getSelection()?.removeAllRanges(),
+          });
         });
 
         rendition.on("relocated", (loc: Location) => {
           setEdges({ atStart: loc.atStart, atEnd: loc.atEnd });
+          onSelectionRef.current(null);
           const r = report(loc);
           if (!userMoveRef.current) return;
           userMoveRef.current = false;
@@ -218,27 +260,33 @@ export function EpubViewer({ bookId, userId, fileUrl, initialCfi, toc, onLocatio
         rendition.on("touchstart", onTouchStart);
         rendition.on("touchend", onTouchEnd);
 
+        // Displays a CFI (point or range) and checks the page shown contains it.
+        // The first display() of a section scrolls before the theme's styles
+        // have re-paginated it, so a position past the unstyled page count is
+        // clamped to an earlier page; by the second display the layout is final.
+        const displayAt = async (target: string) => {
+          const point = new EpubCFI(target);
+          point.collapse(true);
+          const landedOn = () => {
+            const loc = rendition.currentLocation() as unknown as Location | undefined;
+            const ok = loc?.start != null && point.compare(loc.start.cfi, point) <= 0 && point.compare(point, loc.end.cfi) <= 0;
+            const where = `saved=${target} landed=${loc?.start?.cfi}…${loc?.end?.cfi} page=${loc?.start?.displayed?.page}/${loc?.start?.displayed?.total}`;
+            return { ok, where };
+          };
+          await rendition.display(target);
+          let landed = landedOn();
+          if (!landed.ok) {
+            console.log("[reader] first display missed the target page; displaying again", landed.where);
+            await rendition.display(target);
+            landed = landedOn();
+          }
+          return landed;
+        };
+
         if (initialCfi) {
           console.log("[reader] restoring saved position", initialCfi, `(container ${el.clientWidth}×${el.clientHeight})`);
           try {
-            const cfi = new EpubCFI();
-            const landedOn = () => {
-              const loc = rendition.currentLocation() as unknown as Location | undefined;
-              const ok =
-                loc?.start != null && cfi.compare(loc.start.cfi, initialCfi) <= 0 && cfi.compare(initialCfi, loc.end.cfi) <= 0;
-              const where = `saved=${initialCfi} landed=${loc?.start?.cfi}…${loc?.end?.cfi} page=${loc?.start?.displayed?.page}/${loc?.start?.displayed?.total}`;
-              return { ok, where };
-            };
-            await rendition.display(initialCfi);
-            let landed = landedOn();
-            if (!landed.ok) {
-              // The first display() scrolls before the theme's styles have
-              // re-paginated the chapter, so a position past the unstyled page
-              // count is clamped to an earlier page. The layout is final now.
-              console.log("[reader] first display missed the saved page; displaying again", landed.where);
-              await rendition.display(initialCfi);
-              landed = landedOn();
-            }
+            const landed = await displayAt(initialCfi);
             if (landed.ok) anchor = initialCfi;
             console[landed.ok ? "log" : "warn"](
               landed.ok ? "[reader] restored position" : "[reader] restore landed on a page that doesn't contain the saved position",
@@ -258,7 +306,15 @@ export function EpubViewer({ bookId, userId, fileUrl, initialCfi, toc, onLocatio
         onReadyRef.current({
           goTo: (target) => {
             userMoveRef.current = true;
-            void rendition.display(target).catch(() => rendition.display(target.split("#")[0]));
+            if (target.startsWith("epubcfi(")) {
+              void displayAt(target).catch((err) => console.error("[reader] couldn't jump to", target, err));
+            } else {
+              void rendition.display(target).catch(() => rendition.display(target.split("#")[0]));
+            }
+          },
+          currentLocation: () => {
+            const loc = rendition.currentLocation() as unknown as Location | undefined;
+            return loc?.start ? { cfi: loc.start.cfi, chapter: chapterFor(loc.start.index) } : null;
           },
         });
 
@@ -329,6 +385,27 @@ export function EpubViewer({ bookId, userId, fileUrl, initialCfi, toc, onLocatio
       book?.destroy();
     };
   }, [bookId, userId, fileUrl, initialCfi, toc]);
+
+  // Draw highlights. epub.js keeps annotations and re-applies them whenever a
+  // section is rendered, so each one only needs adding once per rendition.
+  const drawnRef = useRef(new Map<string, string>()); // highlight id -> cfi range
+  useEffect(() => {
+    const rendition = renditionRef.current;
+    if (status !== "ready" || !rendition) return;
+    const drawn = drawnRef.current;
+    const wanted = new Map(highlights.map((h) => [h.id, h.cfi_range]));
+    for (const [id, cfi] of drawn) {
+      if (!wanted.has(id)) {
+        rendition.annotations.remove(cfi, "highlight");
+        drawn.delete(id);
+      }
+    }
+    for (const [id, cfi] of wanted) {
+      if (drawn.has(id)) continue;
+      rendition.annotations.highlight(cfi, { id }, undefined, "reader-highlight", HIGHLIGHT_STYLE);
+      drawn.set(id, cfi);
+    }
+  }, [highlights, status]);
 
   const turn = (side: "prev" | "next") => {
     userMoveRef.current = true;

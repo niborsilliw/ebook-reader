@@ -1,9 +1,9 @@
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { PGlite } from "@electric-sql/pglite";
 import { vector } from "@electric-sql/pglite-pgvector";
 import type { BookPatch, BookRow, ChunkInsert, IngestStore, PendingChunk } from "@/lib/ingest/store";
 
-// Postgres (WASM) with the real migration applied on top of minimal stand-ins
+// Postgres (WASM) with the real migrations applied on top of minimal stand-ins
 // for the Supabase platform: roles, auth.users/auth.uid(), storage schema.
 export async function createTestDb() {
   const pg = new PGlite({ extensions: { vector } });
@@ -23,7 +23,9 @@ export async function createTestDb() {
     create function storage.foldername(name text) returns text[] language sql immutable as
       $$ select (string_to_array(name, '/'))[1:array_length(string_to_array(name, '/'),1)-1] $$;
   `);
-  await pg.exec(readFileSync("supabase/migrations/0001_init.sql", "utf8"));
+  for (const file of readdirSync("supabase/migrations").filter((f) => f.endsWith(".sql")).sort()) {
+    await pg.exec(readFileSync(`supabase/migrations/${file}`, "utf8"));
+  }
   // The worker runs with the service-role key.
   await pg.exec("set role service_role");
   return pg;
