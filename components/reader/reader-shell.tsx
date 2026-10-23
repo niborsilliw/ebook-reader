@@ -29,6 +29,8 @@ type Props = {
   author: string | null;
   fileUrl: string;
   initialCfi: string | null;
+  /** updated_at of the saved position, to tell when another device has moved on. */
+  initialPositionAt: string | null;
   toc: TocEntry[];
   ready: boolean;
   initialHighlights: Highlight[];
@@ -44,6 +46,7 @@ export function ReaderShell({
   author,
   fileUrl,
   initialCfi,
+  initialPositionAt,
   toc,
   ready,
   initialHighlights,
@@ -301,6 +304,7 @@ export function ReaderShell({
             userId={userId}
             fileUrl={fileUrl}
             initialCfi={initialCfi}
+            initialPositionAt={initialPositionAt}
             toc={toc}
             highlights={highlights}
             onSelection={setSelection}

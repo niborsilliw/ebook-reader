@@ -16,6 +16,8 @@ const LOCATION_CHARS = 1600; // granularity of epub.js progress locations
 const SWIPE_MIN_PX = 50;
 const SWIPE_MAX_MS = 800;
 const RESIZE_SETTLE_MS = 150;
+// How often an open reader checks whether another device has moved on.
+const SYNC_POLL_MS = 10_000;
 
 /** A text selection in the book, positioned in the page's (not the iframe's) viewport. */
 export type BookSelection = {
@@ -38,6 +40,7 @@ type Props = {
   userId: string;
   fileUrl: string;
   initialCfi: string | null;
+  initialPositionAt: string | null;
   toc: TocEntry[];
   highlights: Highlight[];
   onSelection: (selection: BookSelection | null) => void;
@@ -51,7 +54,7 @@ type Resizable = { resize(width: number, height: number, cfi?: string): void };
 
 const SERIF = `"Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif`;
 
-export function EpubViewer({ bookId, userId, fileUrl, initialCfi, toc, highlights, onSelection, onHighlightClick, onLocation, onReady }: Props) {
+export function EpubViewer({ bookId, userId, fileUrl, initialCfi, initialPositionAt, toc, highlights, onSelection, onHighlightClick, onLocation, onReady }: Props) {
   const rootRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const renditionRef = useRef<Rendition | null>(null);
@@ -88,6 +91,10 @@ export function EpubViewer({ bookId, userId, fileUrl, initialCfi, toc, highlight
     // --- debounced position saving -------------------------------------
     let pending: Position | null = null;
     let lastSavedCfi = initialCfi;
+    // updated_at of the newest saved position this device has written or
+    // followed. A newer one in the database was saved by another device.
+    let knownAt = initialPositionAt;
+    let saving = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
     const flush = () => {
       clearTimeout(timer);
@@ -95,13 +102,19 @@ export function EpubViewer({ bookId, userId, fileUrl, initialCfi, toc, highlight
       pending = null;
       if (!pos || pos.cfi === lastSavedCfi) return;
       lastSavedCfi = pos.cfi;
+      saving = true;
       void supabase
         .from("reading_positions")
         .upsert({ book_id: bookId, ...pos }, { onConflict: "user_id,book_id" })
-        .then(({ error }) => {
+        .select("updated_at")
+        .single()
+        .then(({ data, error }) => {
+          saving = false;
           if (error) {
             console.error("save position failed", error.message);
             lastSavedCfi = null; // retry on the next move
+          } else if (data) {
+            knownAt = data.updated_at; // our own save: don't follow it
           }
         });
     };
@@ -110,7 +123,11 @@ export function EpubViewer({ bookId, userId, fileUrl, initialCfi, toc, highlight
       clearTimeout(timer);
       timer = setTimeout(flush, SAVE_DEBOUNCE_MS);
     };
-    const onHide = () => document.visibilityState === "hidden" && flush();
+    // Set once the book is open: checks for a newer position from another device.
+    let pull: () => Promise<void> = async () => {};
+    let pollTimer: ReturnType<typeof setInterval> | undefined;
+    // Save on the way out; check for moves made elsewhere on the way back.
+    const onHide = () => (document.visibilityState === "hidden" ? flush() : void pull());
     document.addEventListener("visibilitychange", onHide);
     window.addEventListener("pagehide", flush);
 
@@ -306,6 +323,40 @@ export function EpubViewer({ bookId, userId, fileUrl, initialCfi, toc, highlight
         if (cancelled) return;
         displayed = true;
         setStatus("ready");
+
+        // --- follow moves made on other devices --------------------------
+        // Polls the saved position and jumps to it when another device saved
+        // a newer one. A local move waiting to be saved wins: it is newer, and
+        // will overwrite the other device's position when it saves.
+        let pulling = false;
+        pull = async () => {
+          if (cancelled || pulling || saving || pending || document.visibilityState === "hidden") return;
+          pulling = true;
+          try {
+            const { data, error } = await supabase
+              .from("reading_positions")
+              .select("cfi, updated_at")
+              .eq("book_id", bookId)
+              .maybeSingle();
+            if (error) return console.error("[reader] position sync failed", error.message);
+            // Re-check: the reader may have turned a page while this was out.
+            if (!data || cancelled || saving || pending || !isNewer(data.updated_at, knownAt)) return;
+            knownAt = data.updated_at;
+            lastSavedCfi = data.cfi;
+            if (data.cfi === anchor) return;
+            console.log("[reader] position moved on another device; following", data.cfi);
+            // Not a user move, so the "relocated" this causes isn't saved back.
+            const landed = await displayAt(data.cfi);
+            if (landed.ok) anchor = data.cfi;
+            else console.warn("[reader] synced position landed on the wrong page", landed.where);
+          } catch (err) {
+            console.error("[reader] position sync failed", err);
+          } finally {
+            pulling = false;
+          }
+        };
+        pollTimer = setInterval(() => void pull(), SYNC_POLL_MS);
+
         onReadyRef.current({
           goTo: (target) => {
             userMoveRef.current = true;
@@ -377,6 +428,7 @@ export function EpubViewer({ bookId, userId, fileUrl, initialCfi, toc, highlight
     return () => {
       cancelled = true;
       flush();
+      clearInterval(pollTimer);
       observer.disconnect();
       clearTimeout(resizeTimer);
       document.removeEventListener("visibilitychange", onHide);
@@ -387,7 +439,7 @@ export function EpubViewer({ bookId, userId, fileUrl, initialCfi, toc, highlight
       renditionRef.current = null;
       book?.destroy();
     };
-  }, [bookId, userId, fileUrl, initialCfi, toc]);
+  }, [bookId, userId, fileUrl, initialCfi, initialPositionAt, toc]);
 
   // Draw highlights. epub.js keeps annotations and re-applies them whenever a
   // section is rendered, so each one only needs adding once per rendition.
@@ -462,6 +514,13 @@ function Overlay({ children }: { children: React.ReactNode }) {
       {children}
     </div>
   );
+}
+
+// Postgres timestamps carry microseconds; trim to milliseconds so every
+// browser parses them.
+function isNewer(at: string, than: string | null) {
+  const ms = (t: string) => Date.parse(t.replace(/(\.\d{3})\d+/, "$1"));
+  return than == null || ms(at) > ms(than);
 }
 
 function safeDecode(href: string) {

@@ -29,7 +29,7 @@ export default async function ReadPage({ params }: { params: Promise<{ bookId: s
 
   const [{ data: signed }, { data: position, error: positionError }, highlights, bookmarks] = await Promise.all([
     supabase.storage.from(BOOKS_BUCKET).createSignedUrl(book.file_path, SIGNED_URL_SECONDS),
-    supabase.from("reading_positions").select("cfi").eq("book_id", bookId).maybeSingle(),
+    supabase.from("reading_positions").select("cfi, updated_at").eq("book_id", bookId).maybeSingle(),
     supabase.from("highlights").select(HIGHLIGHT_COLUMNS).eq("book_id", bookId),
     supabase.from("bookmarks").select(BOOKMARK_COLUMNS).eq("book_id", bookId),
   ]);
@@ -48,6 +48,7 @@ export default async function ReadPage({ params }: { params: Promise<{ bookId: s
       author={book.author}
       fileUrl={signed.signedUrl}
       initialCfi={position?.cfi ?? null}
+      initialPositionAt={position?.updated_at ?? null}
       toc={(book.toc as unknown as TocEntry[] | null) ?? []}
       ready={book.status === "ready"}
       initialHighlights={highlights.data ?? []}
