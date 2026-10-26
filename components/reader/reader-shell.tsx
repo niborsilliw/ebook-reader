@@ -14,6 +14,7 @@ import { SelectionBar } from "./selection-bar";
 import { BookmarkRibbon } from "./bookmark-ribbon";
 import { AssistantPanel } from "@/components/assistant/assistant-panel";
 import { NotesPanel } from "@/components/notes/notes-panel";
+import { Notebook } from "@/components/notes/notebook";
 import { createClient } from "@/lib/supabase/browser";
 import { BOOKMARK_COLUMNS, HIGHLIGHT_COLUMNS, type Bookmark, type Highlight } from "@/lib/notes/types";
 import type { HighlightColor } from "@/lib/notes/colors";
@@ -38,9 +39,19 @@ type Props = {
   ready: boolean;
   initialHighlights: Highlight[];
   initialBookmarks: Bookmark[];
+  initialNotebook: string;
 };
 
 const BOOKMARK_LABEL_CHARS = 80;
+
+// The right drawer's tabs, top to bottom of the reader's thinking: the book's
+// notebook, the notes on its passages, and the assistant.
+const RIGHT_TABS = [
+  { id: "notebook", label: "Notebook" },
+  { id: "notes", label: "Notes" },
+  { id: "assistant", label: "Assistant" },
+] as const;
+type RightTab = (typeof RIGHT_TABS)[number]["id"];
 
 export function ReaderShell({
   bookId,
@@ -54,11 +65,12 @@ export function ReaderShell({
   ready,
   initialHighlights,
   initialBookmarks,
+  initialNotebook,
 }: Props) {
   // Navigation is summoned, not resident: Contents & Library from the left,
   // Notes & Assistant from the right, one at a time, over the page.
   const [drawer, setDrawer] = useState<"left" | "right" | null>(null);
-  const [rightTab, setRightTab] = useState<"notes" | "assistant">("notes");
+  const [rightTab, setRightTab] = useState<RightTab>("notes");
   const [revealControls, setRevealControls] = useState(0);
   const [highlights, setHighlights] = useState(initialHighlights);
   const [bookmarks, setBookmarks] = useState(initialBookmarks);
@@ -90,7 +102,7 @@ export function ReaderShell({
     setSelection(null);
   };
 
-  const openDrawer = (side: "left" | "right", tab?: "notes" | "assistant") => {
+  const openDrawer = (side: "left" | "right", tab?: RightTab) => {
     if (selection) done(selection); // the colour bar would float over the drawer
     if (tab) setRightTab(tab);
     setDrawer(side);
@@ -295,21 +307,21 @@ export function ReaderShell({
 
       <Drawer id="notes-drawer" side="right" label="Notes and assistant" open={drawer === "right"} onClose={closeDrawer} className="max-w-[24rem]">
         <div role="tablist" aria-label="Notes and assistant" className="flex h-12 shrink-0 items-center gap-1 border-b border-[#e7e2d8] px-3">
-          {(["notes", "assistant"] as const).map((tab) => (
+          {RIGHT_TABS.map(({ id, label }) => (
             <button
-              key={tab}
+              key={id}
               type="button"
               role="tab"
-              id={`tab-${tab}`}
-              aria-selected={rightTab === tab}
-              aria-controls={`tabpanel-${tab}`}
-              onClick={() => setRightTab(tab)}
+              id={`tab-${id}`}
+              aria-selected={rightTab === id}
+              aria-controls={`tabpanel-${id}`}
+              onClick={() => setRightTab(id)}
               className={
-                "rounded-md px-3 py-1.5 font-serif text-[0.95rem] " +
-                (rightTab === tab ? "bg-black/[0.06] text-[#1f1d1a] italic" : "text-[#6b655c] hover:bg-black/5")
+                "rounded-md px-2.5 py-1.5 font-serif text-[0.95rem] " +
+                (rightTab === id ? "bg-black/[0.06] text-[#1f1d1a] italic" : "text-[#6b655c] hover:bg-black/5")
               }
             >
-              {tab === "notes" ? "Notes" : "Assistant"}
+              {label}
             </button>
           ))}
           <span className="flex-1" />
@@ -317,7 +329,10 @@ export function ReaderShell({
             ✕
           </Button>
         </div>
-        {/* Both stay mounted so a conversation or note draft survives a tab switch. */}
+        {/* All stay mounted so a conversation or draft survives a tab switch. */}
+        <div id="tabpanel-notebook" role="tabpanel" aria-labelledby="tab-notebook" hidden={rightTab !== "notebook"} className="min-h-0 flex-1">
+          <Notebook bookId={bookId} initialBody={initialNotebook} />
+        </div>
         <div id="tabpanel-notes" role="tabpanel" aria-labelledby="tab-notes" hidden={rightTab !== "notes"} className="min-h-0 flex-1">
           <NotesPanel
             highlights={highlights}
