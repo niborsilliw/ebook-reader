@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import ePub, { EpubCFI, type Book, type Location, type Rendition } from "epubjs";
+import ePub, { EpubCFI, type Book, type Contents, type Location, type Rendition } from "epubjs";
 import type { TocEntry } from "@/lib/epub/parse";
 import type { Highlight } from "@/lib/notes/types";
 import { colorFill } from "@/lib/notes/colors";
@@ -31,8 +31,20 @@ export type BookSelection = {
 export type ReaderApi = {
   /** Navigate to a spine href (as stored on chunks/TOC, fragment allowed) or a CFI / CFI range. */
   goTo: (target: string) => void;
-  /** Start of the page being read, and its chapter. */
-  currentLocation: () => { cfi: string; chapter: string | null } | null;
+  /** Start of the page being read, its chapter, and the text on it. */
+  currentLocation: () => { cfi: string; chapter: string | null; excerpt: string } | null;
+};
+
+/** Where the reader is, reported on every page turn. */
+export type ReaderLocation = {
+  chapter: string | null;
+  /** Stable page number (one per epub.js location), the same on every screen size; null until locations load. */
+  page: number | null;
+  percentage: number | null;
+  href: string;
+  /** First and last visible positions on the screen. */
+  start: string;
+  end: string;
 };
 
 type Props = {
@@ -45,8 +57,10 @@ type Props = {
   highlights: Highlight[];
   onSelection: (selection: BookSelection | null) => void;
   onHighlightClick: (id: string) => void;
-  onLocation: (loc: { chapter: string | null; percentage: number | null; href: string }) => void;
+  onLocation: (loc: ReaderLocation) => void;
   onReady: (api: ReaderApi) => void;
+  /** Drawn over the top corner of the page (the bookmark ribbon). */
+  pageMarker?: React.ReactNode;
 };
 
 type Position = { cfi: string; percentage: number | null; spine_href: string };
@@ -54,7 +68,20 @@ type Resizable = { resize(width: number, height: number, cfi?: string): void };
 
 const SERIF = `"Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif`;
 
-export function EpubViewer({ bookId, userId, fileUrl, initialCfi, initialPositionAt, toc, highlights, onSelection, onHighlightClick, onLocation, onReady }: Props) {
+export function EpubViewer({
+  bookId,
+  userId,
+  fileUrl,
+  initialCfi,
+  initialPositionAt,
+  toc,
+  highlights,
+  onSelection,
+  onHighlightClick,
+  onLocation,
+  onReady,
+  pageMarker,
+}: Props) {
   const rootRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const renditionRef = useRef<Rendition | null>(null);
@@ -151,7 +178,18 @@ export function EpubViewer({ bookId, userId, fileUrl, initialCfi, initialPositio
       if (!book) return;
       const hasLocations = book.locations.length() > 0;
       const percentage = hasLocations ? book.locations.percentageFromCfi(loc.start.cfi) : null;
-      onLocationRef.current({ chapter: chapterFor(loc.start.index), percentage, href: safeDecode(loc.start.href) });
+      // Locations are fixed-size runs of text, so they number pages the way a
+      // printed book does: the same on a phone as on a desktop.
+      // (epub.js's types say this returns a Location; it returns an index.)
+      const page = hasLocations ? (book.locations.locationFromCfi(loc.start.cfi) as unknown as number) + 1 : null;
+      onLocationRef.current({
+        chapter: chapterFor(loc.start.index),
+        page,
+        percentage,
+        href: safeDecode(loc.start.href),
+        start: loc.start.cfi,
+        end: loc.end.cfi,
+      });
       return { percentage };
     };
 
@@ -368,7 +406,8 @@ export function EpubViewer({ bookId, userId, fileUrl, initialCfi, initialPositio
           },
           currentLocation: () => {
             const loc = rendition.currentLocation() as unknown as Location | undefined;
-            return loc?.start ? { cfi: loc.start.cfi, chapter: chapterFor(loc.start.index) } : null;
+            if (!loc?.start) return null;
+            return { cfi: loc.start.cfi, chapter: chapterFor(loc.start.index), excerpt: pageText(rendition, loc) };
           },
         });
 
@@ -482,6 +521,7 @@ export function EpubViewer({ bookId, userId, fileUrl, initialCfi, initialPositio
           stop this flex item shrinking to fit a phone screen. */}
       <div className="relative mx-auto h-full w-full max-w-[44rem] min-w-0 py-6 sm:px-8">
         <div ref={containerRef} className="h-full w-full overflow-hidden" />
+        {status === "ready" && pageMarker}
         {status === "loading" && <Overlay>Opening book…</Overlay>}
         {status === "error" && <Overlay>This book couldn’t be opened. Try reloading the page.</Overlay>}
       </div>
@@ -514,6 +554,22 @@ function Overlay({ children }: { children: React.ReactNode }) {
       {children}
     </div>
   );
+}
+
+// The text visible on the screen, whitespace collapsed ("" for a picture page).
+function pageText(rendition: Rendition, loc: Location) {
+  try {
+    const contents = (rendition.getContents() as unknown as Contents[])[0];
+    if (!contents) return "";
+    const from = contents.range(loc.start.cfi);
+    const to = contents.range(loc.end.cfi);
+    const range = contents.document.createRange();
+    range.setStart(from.startContainer, from.startOffset);
+    range.setEnd(to.endContainer, to.endOffset);
+    return range.toString().replace(/\s+/g, " ").trim();
+  } catch {
+    return "";
+  }
 }
 
 // Postgres timestamps carry microseconds; trim to milliseconds so every

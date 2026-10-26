@@ -11,7 +11,6 @@ type Props = {
   selection: BookSelection;
   busy: boolean;
   onHighlight: (color: HighlightColor) => void;
-  onBookmark: () => void;
 };
 
 /**
@@ -19,7 +18,7 @@ type Props = {
  * the selection, clamped to the screen edges, and placed below the selection on
  * touch screens, where the system's own copy/share menu appears above it.
  */
-export function SelectionBar({ selection, busy, onHighlight, onBookmark }: Props) {
+export function SelectionBar({ selection, busy, onHighlight }: Props) {
   const ref = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState<{ left: number; top: number } | null>(null);
 
@@ -52,7 +51,7 @@ export function SelectionBar({ selection, busy, onHighlight, onBookmark }: Props
       // Keep the selection: a mousedown here would otherwise clear it first.
       onMouseDown={(e) => e.preventDefault()}
     >
-      <div role="group" aria-label="Highlight" className="flex items-center gap-1 pr-1.5 pl-2.5">
+      <div role="group" aria-label="Highlight" className="flex items-center gap-1 px-1.5">
         {HIGHLIGHT_COLORS.map((c) => (
           <button
             key={c.id}
@@ -67,23 +66,6 @@ export function SelectionBar({ selection, busy, onHighlight, onBookmark }: Props
           </button>
         ))}
       </div>
-      <span aria-hidden className="w-px bg-white/15" />
-      <BarButton disabled={busy} onClick={onBookmark}>
-        Bookmark
-      </BarButton>
     </div>
-  );
-}
-
-function BarButton({ children, disabled, onClick }: { children: React.ReactNode; disabled: boolean; onClick: () => void }) {
-  return (
-    <button
-      type="button"
-      disabled={disabled}
-      onClick={onClick}
-      className="flex items-center px-3.5 py-2 whitespace-nowrap hover:bg-white/10 disabled:opacity-50"
-    >
-      {children}
-    </button>
   );
 }

@@ -8,13 +8,15 @@ import type { TocEntry } from "@/lib/epub/parse";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { TocSheet } from "./toc-sheet";
-import type { BookSelection, ReaderApi } from "./epub-viewer";
+import type { BookSelection, ReaderApi, ReaderLocation } from "./epub-viewer";
 import { SelectionBar } from "./selection-bar";
+import { BookmarkRibbon } from "./bookmark-ribbon";
 import { AssistantPanel } from "@/components/assistant/assistant-panel";
 import { NotesPanel } from "@/components/notes/notes-panel";
 import { createClient } from "@/lib/supabase/browser";
 import { BOOKMARK_COLUMNS, HIGHLIGHT_COLUMNS, type Bookmark, type Highlight } from "@/lib/notes/types";
 import type { HighlightColor } from "@/lib/notes/colors";
+import { compareCfi } from "@/lib/notes/order";
 
 // epub.js touches `window` at import time.
 const EpubViewer = dynamic(() => import("./epub-viewer").then((m) => m.EpubViewer), {
@@ -60,32 +62,41 @@ export function ReaderShell({
   const [saving, setSaving] = useState(false);
   const [activeNote, setActiveNote] = useState<string | null>(null); // open item in the notes panel
   const [focusNote, setFocusNote] = useState(0);
-  const [chapter, setChapter] = useState<string | null>(null);
-  const [percent, setPercent] = useState<number | null>(null);
+  const [location, setLocation] = useState<ReaderLocation | null>(null);
   const api = useRef<ReaderApi | null>(null);
   const currentHref = useRef<string | null>(null);
 
-  const onLocation = useCallback((loc: { chapter: string | null; percentage: number | null; href: string }) => {
-    setChapter(loc.chapter);
-    setPercent(loc.percentage);
+  const onLocation = useCallback((loc: ReaderLocation) => {
+    setLocation(loc);
     currentHref.current = loc.href;
   }, []);
+
+  // A bookmark marks the page it falls on, wherever the page breaks are on
+  // this screen. It is saved at the page's start; epub.js sometimes reports
+  // a page's end as before its start, so a match there counts on its own.
+  const pageBookmark = location
+    ? bookmarks.find(
+        (b) =>
+          b.cfi === location.start || (compareCfi(location.start, b.cfi) <= 0 && compareCfi(b.cfi, location.end) <= 0),
+      )
+    : undefined;
+
+  const done = (sel: BookSelection) => {
+    sel.clear();
+    setSelection(null);
+  };
 
   // Below lg there isn't room for the page between two docked panels, so
   // opening one closes the other.
   const narrow = () => !window.matchMedia("(min-width: 1024px)").matches;
   const toggleNotes = () => {
     if (!notesOpen && narrow()) setPanelOpen(false);
+    if (!notesOpen && selection) done(selection); // the colour bar would float over the panel
     setNotesOpen((o) => !o);
   };
   const toggleAssistant = () => {
     if (!panelOpen && narrow()) setNotesOpen(false);
     setPanelOpen((o) => !o);
-  };
-
-  const done = (sel: BookSelection) => {
-    sel.clear();
-    setSelection(null);
   };
 
   async function saveHighlight(sel: BookSelection, color: HighlightColor) {
@@ -105,31 +116,28 @@ export function ReaderShell({
     done(sel);
   }
 
-  // Bookmarks mark the page being read; the selected text names it.
-  async function saveBookmark(sel: BookSelection) {
+  // The ribbon: bookmarks the page being read, or removes its bookmark. The
+  // page's opening words name it in the notes panel.
+  async function toggleBookmark() {
+    if (pageBookmark) return void deleteBookmark(pageBookmark);
     const here = api.current?.currentLocation();
     if (!here) return;
     setSaving(true);
-    const label = sel.text.length > BOOKMARK_LABEL_CHARS ? `${sel.text.slice(0, BOOKMARK_LABEL_CHARS - 1).trimEnd()}…` : sel.text;
+    const text = here.excerpt;
+    const label = text.length > BOOKMARK_LABEL_CHARS ? `${text.slice(0, BOOKMARK_LABEL_CHARS - 1).trimEnd()}…` : text || here.chapter;
     const { data, error } = await createClient()
       .from("bookmarks")
       .insert({ book_id: bookId, cfi: here.cfi, label })
       .select(BOOKMARK_COLUMNS)
       .single();
     setSaving(false);
-    if (error?.code === "23505") {
-      toast("This page is already bookmarked");
-      done(sel);
-      return;
-    }
+    if (error?.code === "23505") return void toast("This page is already bookmarked");
     if (error || !data) {
       console.error("save bookmark failed", error?.message);
       toast.error(`Couldn’t save the bookmark${error ? `: ${error.message}` : ""}`);
       return;
     }
     setBookmarks((list) => [...list, data]);
-    toast("Bookmarked");
-    done(sel);
   }
 
   // Opening an item jumps to it and shows its note field and delete button.
@@ -311,6 +319,7 @@ export function ReaderShell({
             onHighlightClick={openHighlight}
             onLocation={onLocation}
             onReady={(r) => (api.current = r)}
+            pageMarker={<BookmarkRibbon marked={!!pageBookmark} busy={saving} onToggle={() => void toggleBookmark()} />}
           />
         </main>
 
@@ -319,13 +328,15 @@ export function ReaderShell({
             selection={selection}
             busy={saving}
             onHighlight={(color) => void saveHighlight(selection, color)}
-            onBookmark={() => void saveBookmark(selection)}
           />
         )}
 
-        <footer className="flex h-9 items-center justify-between px-6 text-xs text-[#6b655c]">
-          <span className="truncate">{chapter ?? ""}</span>
-          <span className="tabular-nums">{percent == null ? "" : `${Math.round(percent * 100)}%`}</span>
+        {/* Like a printed page: the chapter and a page number, nothing to chase. */}
+        <footer className="flex h-9 items-center justify-between gap-4 px-6 font-serif text-xs text-[#8c8478]">
+          <span className="truncate italic">{location?.chapter ?? ""}</span>
+          <span className="tabular-nums" aria-label={location?.page ? `Page ${location.page}` : undefined}>
+            {location?.page ?? ""}
+          </span>
         </footer>
       </div>
 

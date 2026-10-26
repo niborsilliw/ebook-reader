@@ -47,7 +47,7 @@ export function NotesPanel({
       <div className="min-h-0 flex-1 overflow-y-auto">
         <Section title="Bookmarks">
           {marks.length === 0 ? (
-            <Empty>No bookmarks yet. Select some text on a page and choose Bookmark.</Empty>
+            <Empty>No bookmarks yet. Tap the ribbon at the top corner of a page to mark it.</Empty>
           ) : (
             <ul className="-mx-2">
               {marks.map((b) => (
@@ -58,7 +58,10 @@ export function NotesPanel({
                   onDelete={() => onDeleteBookmark(b)}
                   deleteLabel="Delete bookmark"
                 >
-                  <span className="line-clamp-2">{b.label || "Bookmark"}</span>
+                  <span className="flex gap-2">
+                    <RibbonIcon />
+                    <span className="line-clamp-2 min-w-0">{b.label || "Bookmark"}</span>
+                  </span>
                 </Item>
               ))}
             </ul>
@@ -209,6 +212,15 @@ function NoteField({
         {status === "saving" ? "Saving…" : status === "saved" ? "Saved" : status === "error" ? "Couldn’t save" : ""}
       </p>
     </div>
+  );
+}
+
+// The page ribbon in miniature, so bookmarks read as page markers, not text.
+function RibbonIcon() {
+  return (
+    <svg aria-hidden viewBox="0 0 18 44" className="mt-0.5 h-4 w-[7px] shrink-0 fill-[#8f2d2a]">
+      <path d="M0 0h18v44l-9-7-9 7z" />
+    </svg>
   );
 }
 
