@@ -26,7 +26,10 @@ const WIDE_FONT_SIZE = "13.5px";
 // A page turn slides the new page in from the side it came from: short and
 // shallow, so the eye can follow the change without a 3D flip.
 const PAGE_SLIDE_MS = 180;
-const PAGE_SLIDE_PX = 28;
+const PAGE_SLIDE_PX = 60;
+const PAGE_SLIDE_OPACITY = 0.35;
+// If a turn goes nowhere (the end of the book), stop waiting for it.
+const PAGE_SLIDE_GIVE_UP_MS = 1500;
 // How often an open reader checks whether another device has moved on.
 const SYNC_POLL_MS = 10_000;
 
@@ -76,6 +79,12 @@ type Props = {
 
 type Position = { cfi: string; percentage: number | null; spine_href: string };
 type Resizable = { resize(width: number, height: number, cfi?: string): void };
+// The parts of epub.js's (untyped) view manager that move between pages.
+type PageMover = {
+  scrollBy(x: number, y: number, silent?: boolean): void;
+  scrollTo(x: number, y: number, silent?: boolean): void;
+  clear(): void;
+};
 
 export function EpubViewer({
   bookId,
@@ -205,31 +214,57 @@ export function EpubViewer({
     };
 
     // --- page turns: buttons, keys and swipes ------------------------------
-    // The new page slides in once epub.js has scrolled to it. epub.js scrolls
-    // its container to turn within a chapter (the scroll event comes before
-    // the frame is painted, so the slide starts on the first frame of the new
-    // page) and swaps the view to move into another chapter, which only
-    // "relocated" reports.
+    // Every turn goes through turnPage, and the new page slides in from the
+    // side it comes from. The slide must start in the same task that puts the
+    // new page on screen, or the page is painted at rest first and then jumps
+    // (Safari fires scroll events only after painting). So it is started from
+    // epub.js's own page moves, hooked once the book is open (hookPageMoves):
+    // a scroll within a chapter, or, moving into another chapter, the clear
+    // of the old one, which holds the page in the slide's start pose until
+    // the new chapter is shown ("relocated").
     let slideFrom: -1 | 0 | 1 = 0;
     let slideAnim: Animation | null = null;
+    let giveUp: ReturnType<typeof setTimeout> | undefined;
+    const startPose = (dir: number) => ({ transform: `translateX(${dir * PAGE_SLIDE_PX}px)`, opacity: `${PAGE_SLIDE_OPACITY}` });
+    const unpose = () => Object.assign(el.style, { transform: "", opacity: "" });
     const slide = () => {
       const dir = slideFrom;
       slideFrom = 0;
-      if (!dir || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+      clearTimeout(giveUp);
+      if (!dir) return;
+      unpose(); // the animation starts from the same pose
+      if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
       slideAnim?.cancel(); // a quick second turn starts its own slide
-      slideAnim = el.animate(
-        [
-          { transform: `translateX(${dir * PAGE_SLIDE_PX}px)`, opacity: 0.35 },
-          { transform: "none", opacity: 1 },
-        ],
-        { duration: PAGE_SLIDE_MS, easing: "cubic-bezier(0.2, 0.8, 0.2, 1)" },
-      );
+      slideAnim = el.animate([startPose(dir), { transform: "none", opacity: "1" }], {
+        duration: PAGE_SLIDE_MS,
+        easing: "cubic-bezier(0.2, 0.8, 0.2, 1)",
+      });
+    };
+    const hookPageMoves = (manager: PageMover) => {
+      const after = <K extends keyof PageMover>(name: K, fn: () => void) => {
+        const original = manager[name].bind(manager) as (...args: unknown[]) => unknown;
+        manager[name] = ((...args: unknown[]) => {
+          const result = original(...args);
+          fn();
+          return result;
+        }) as PageMover[K];
+      };
+      after("scrollBy", slide);
+      after("scrollTo", slide);
+      after("clear", () => {
+        if (slideFrom && !window.matchMedia("(prefers-reduced-motion: reduce)").matches) Object.assign(el.style, startPose(slideFrom));
+      });
     };
     const turnPage = (side: "prev" | "next") => {
       const r = renditionRef.current;
       if (!r) return;
       userMoveRef.current = true;
       slideFrom = side === "next" ? 1 : -1; // the next page comes in from the right
+      clearTimeout(giveUp);
+      giveUp = setTimeout(() => {
+        slideFrom = 0;
+        unpose();
+      }, PAGE_SLIDE_GIVE_UP_MS);
       void r[side]();
     };
     turnRef.current = turnPage;
@@ -348,7 +383,7 @@ export function EpubViewer({
         });
 
         rendition.on("relocated", (loc: Location) => {
-          slide(); // a turn into another chapter (or nothing, if the scroll already slid)
+          slide(); // a turn into another chapter (or nothing, if a scroll already slid)
           setEdges({ atStart: loc.atStart, atEnd: loc.atEnd });
           onSelectionRef.current(null);
           const r = report(loc);
@@ -404,8 +439,8 @@ export function EpubViewer({
         if (cancelled) return;
         displayed = true;
         setStatus("ready");
-        // epub.js creates its scrolling container on the first display.
-        el.querySelector(".epub-container")?.addEventListener("scroll", slide, { passive: true });
+        // epub.js creates its view manager on the first display.
+        hookPageMoves((rendition as unknown as { manager: PageMover }).manager);
 
         // --- follow moves made on other devices --------------------------
         // Polls the saved position and jumps to it when another device saved
@@ -430,6 +465,7 @@ export function EpubViewer({
             console.log("[reader] position moved on another device; following", data.cfi);
             // Not a user move, so the "relocated" this causes isn't saved back.
             slideFrom = 0;
+            unpose();
             const landed = await displayAt(data.cfi);
             if (landed.ok) anchor = data.cfi;
             else console.warn("[reader] synced position landed on the wrong page", landed.where);
@@ -445,6 +481,7 @@ export function EpubViewer({
           goTo: (target) => {
             userMoveRef.current = true;
             slideFrom = 0; // jumps don't slide
+            unpose();
             if (target.startsWith("epubcfi(")) {
               void displayAt(target).catch((err) => console.error("[reader] couldn't jump to", target, err));
             } else {
@@ -531,6 +568,7 @@ export function EpubViewer({
     return () => {
       cancelled = true;
       flush();
+      clearTimeout(giveUp);
       clearInterval(pollTimer);
       observer.disconnect();
       clearTimeout(resizeTimer);
