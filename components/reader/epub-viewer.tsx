@@ -31,6 +31,12 @@ const RESIZE_SETTLE_MS = 150;
 // book's own size.
 const WIDE_QUERY = "(min-width: 640px)";
 const WIDE_FONT_SIZE = "13.5px";
+// From here up the book opens as a two-page spread, like a physical book.
+// Each page's text is a little under half the container (epub.js puts a
+// gutter between and around the pages), so below this the pages would be
+// cramped: about 46 characters a line at 1000px, 51 here, 58 at 1280px. It
+// must match the column's min-[1120px] width class below.
+const SPREAD_QUERY = "(min-width: 1120px)";
 // A page turn slides the new page in from the side it came from: short and
 // shallow, so the eye can follow the change without a 3D flip.
 const PAGE_SLIDE_MS = 180;
@@ -162,6 +168,8 @@ export function EpubViewer({
     // to. Resizes re-display here; epub.js would otherwise re-display at the
     // start of the visible page, drifting back a little on every resize.
     let anchor: string | null = null;
+    // Whether the rendition is showing two-page spreads (see applySpread).
+    let spreadOn: boolean | null = null;
     const supabase = createClient();
 
     // --- debounced position saving -------------------------------------
@@ -367,13 +375,16 @@ export function EpubViewer({
           width: "100%",
           height: "100%",
           flow: "paginated",
-          spread: "none",
+          // Single page or spread, decided by SPREAD_QUERY (applySpread).
+          spread: window.matchMedia(SPREAD_QUERY).matches ? "auto" : "none",
+          minSpreadWidth: 1, // whenever spread is "auto" (0 would mean epub.js's default, 800px)
           allowScriptedContent: true,
         });
         renditionRef.current = rendition;
         drawnRef.current.clear();
 
         applyTypeScale(rendition);
+        spreadOn = window.matchMedia(SPREAD_QUERY).matches;
         rendition.themes.default({
           // Keep book content inside the page column on narrow screens.
           "html, body": { "max-width": "100%", "box-sizing": "border-box" },
@@ -594,6 +605,16 @@ export function EpubViewer({
       else (r.themes as unknown as { removeOverride(name: string): void }).removeOverride("font-size");
     }
 
+    // Two pages or one. Switched by the same breakpoint as the column's width
+    // (not by epub.js's own container-width test), so a wide single page with
+    // overlong lines never appears.
+    function applySpread(r: Rendition) {
+      const on = window.matchMedia(SPREAD_QUERY).matches;
+      if (on === spreadOn) return;
+      spreadOn = on;
+      r.spread(on ? "auto" : "none", 1);
+    }
+
     // Re-lay out pages when the container changes size (window resize or a
     // panel opening/closing). Re-paginating is expensive, so wait until the
     // size settles rather than doing it on every frame of a panel animation.
@@ -605,9 +626,11 @@ export function EpubViewer({
         // epub.js throws if asked to resize before its first page is laid out.
         // resize()'s optional CFI to re-display at is missing from epub.js's types.
         if (!r || !displayed) return;
-        // Crossing the tablet breakpoint changes the margins too, so a type
-        // size change always arrives here and is laid out with the resize.
+        // Crossing the tablet or spread breakpoint changes the column's width
+        // too, so a type size or spread change always arrives here and is
+        // laid out with the resize.
         applyTypeScale(r);
+        applySpread(r);
         (r as unknown as Resizable).resize(el.clientWidth, el.clientHeight, anchor ?? undefined);
       }, RESIZE_SETTLE_MS);
     });
@@ -671,9 +694,10 @@ export function EpubViewer({
           stop this flex item shrinking to fit a phone screen. The width and
           margins give a measure of 65–70 characters of Libre Baskerville (at
           WIDE_FONT_SIZE) per line on a desktop or tablet, set in generous
-          white space. Very large screens let the page breathe a little wider,
-          still within a readable line (about 73 characters). */}
-      <div className="relative mx-auto h-full w-full max-w-[38rem] min-w-0 py-8 sm:px-12 sm:py-12 min-[1400px]:max-w-[41rem]">
+          white space. From SPREAD_QUERY up it holds a two-page spread of about
+          51–58 characters a page, growing on bigger screens (about 60, then
+          65) so the book fills more of the screen without overlong lines. */}
+      <div className="relative mx-auto h-full w-full max-w-[38rem] min-w-0 py-8 sm:px-12 sm:py-12 min-[1120px]:max-w-[68rem] min-[1400px]:max-w-[72rem] min-[1700px]:max-w-[76rem]">
         <div ref={containerRef} className="h-full w-full overflow-hidden" />
         {status === "ready" && pageMarker}
         {status === "loading" && <Overlay>Opening book…</Overlay>}

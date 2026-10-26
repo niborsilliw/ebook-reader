@@ -11,7 +11,7 @@ describe("migrations, applied in order", () => {
     await pg.close();
   });
 
-  it("leave no notebooks table (added in 0003, dropped in 0004)", async () => {
+  it("leave no notebooks table (dropped by 0003)", async () => {
     const { rows } = await pg.query<{ t: string | null }>(`select to_regclass('public.notebooks')::text as t`);
     expect(rows[0].t).toBeNull();
   });
