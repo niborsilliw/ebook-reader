@@ -9,6 +9,7 @@ import { createClient } from "@/lib/supabase/browser";
 import { BOOKS_BUCKET, locationsPath } from "@/lib/storage-paths";
 import { IMAGE_PAGE_STYLES, markImagePage } from "@/lib/reader/image-pages";
 import { BODY_FONT, installBodyFont } from "@/lib/reader/fonts";
+import { lockDownChapter } from "@/lib/reader/content-security";
 
 const SAVE_DEBOUNCE_MS = 2000;
 const LOCATION_CHARS = 1600; // granularity of epub.js progress locations
@@ -16,6 +17,9 @@ const LOCATION_CHARS = 1600; // granularity of epub.js progress locations
 // long-press text selection) is left alone.
 const SWIPE_MIN_PX = 50;
 const SWIPE_MAX_MS = 800;
+// A tap: a touch that ends close to where it started, quickly.
+const TAP_SLOP_PX = 10;
+const TAP_MAX_MS = 500;
 const RESIZE_SETTLE_MS = 150;
 // From tablet width up (Tailwind's sm, where the page margins widen) the text
 // is set smaller, like a printed paperback: Libre Baskerville's tall x-height
@@ -118,6 +122,17 @@ export function EpubViewer({
   const onSelectionRef = useRef(onSelection);
   const onHighlightClickRef = useRef(onHighlightClick);
   onHighlightClickRef.current = onHighlightClick;
+  // A touch that began on a highlight, and the highlight last opened (a tap
+  // and the click that may follow it open it once).
+  const highlightTouchRef = useRef<{ id: string; at: number } | null>(null);
+  const lastOpenedRef = useRef<{ id: string; at: number } | null>(null);
+  const openHighlightRef = useRef((id: string) => {
+    const now = performance.now();
+    const last = lastOpenedRef.current;
+    if (last?.id === id && now - last.at < 1000) return;
+    lastOpenedRef.current = { id, at: now };
+    onHighlightClickRef.current(id);
+  });
   onLocationRef.current = onLocation;
   onReadyRef.current = onReady;
   onSelectionRef.current = onSelection;
@@ -287,9 +302,16 @@ export function EpubViewer({
       const start = swipeStart;
       swipeStart = null;
       const t = e.changedTouches[0];
+      const onHighlight = highlightTouchRef.current;
+      highlightTouchRef.current = null;
       if (!start || !t || e.touches.length > 0) return;
       const dx = t.clientX - start.x;
       const dy = t.clientY - start.y;
+      // A tap on a highlight opens it. iOS Safari often sends no click for a
+      // tap on plain text, so the tap is recognised here rather than relying
+      // on the click epub.js would forward.
+      const tapped = Math.abs(dx) < TAP_SLOP_PX && Math.abs(dy) < TAP_SLOP_PX && e.timeStamp - start.t < TAP_MAX_MS;
+      if (tapped && onHighlight && performance.now() - onHighlight.at < TAP_MAX_MS) return openHighlightRef.current(onHighlight.id);
       if (Math.abs(dx) < SWIPE_MIN_PX || Math.abs(dx) < 1.5 * Math.abs(dy) || e.timeStamp - start.t > SWIPE_MAX_MS) return;
       if (e.view?.getSelection()?.isCollapsed === false) return; // dragging a text selection
       turnPage(dx < 0 ? "next" : "prev");
@@ -315,12 +337,17 @@ export function EpubViewer({
         if (cancelled) return;
 
         book = ePub(data);
+        // Book content is untrusted. Every chapter gets a policy forbidding
+        // all script before it is rendered (see content-security.ts), which is
+        // what lets the iframe allow scripts: Safari won't run the reader's
+        // own listeners (swipes, selection, keys) in a script-less iframe.
+        book.spine.hooks.content.register(lockDownChapter);
         const rendition = book.renderTo(el, {
           width: "100%",
           height: "100%",
           flow: "paginated",
           spread: "none",
-          allowScriptedContent: false, // book content is untrusted
+          allowScriptedContent: true,
         });
         renditionRef.current = rendition;
         drawnRef.current.clear();
@@ -598,9 +625,13 @@ export function EpubViewer({
     }
     for (const [id, h] of wanted) {
       if (drawn.has(id)) continue;
-      // epub.js calls this on touchstart as well as click; only a click (or a
-      // tap, which ends in one) means "open this highlight", not a swipe.
-      const onClick = (e: Event) => e.type === "click" && onHighlightClickRef.current(id);
+      // epub.js calls this on touchstart as well as click. A click opens the
+      // highlight; a touch only marks it, and the touch's end decides whether
+      // it was a tap (open it) or a swipe (turn the page) — see onTouchEnd.
+      const onClick = (e: Event) => {
+        if (e.type === "click") openHighlightRef.current(id);
+        else if (e.type === "touchstart") highlightTouchRef.current = { id, at: performance.now() };
+      };
       // One class only: epub.js adds it with classList.add().
       rendition.annotations.highlight(h.cfi_range, { id }, onClick, `reader-highlight-${h.color}`, {
         fill: colorFill(h.color),

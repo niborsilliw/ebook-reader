@@ -64,6 +64,11 @@ export function ReaderShell({
   const [focusNote, setFocusNote] = useState(0);
   const [location, setLocation] = useState<ReaderLocation | null>(null);
   const api = useRef<ReaderApi | null>(null);
+  // When a tap on a highlight opened the notes. The click a phone sends after
+  // the tap lands on the backdrop that has just appeared under the finger,
+  // and mustn't close them again or take focus from the note field.
+  const notesOpenedAt = useRef(0);
+  const GHOST_CLICK_MS = 500;
   const currentHref = useRef<string | null>(null);
 
   const onLocation = useCallback((loc: ReaderLocation) => {
@@ -149,6 +154,7 @@ export function ReaderShell({
 
   // Tapping a highlight in the text opens its note in the panel.
   const openHighlight = (id: string) => {
+    notesOpenedAt.current = performance.now();
     if (narrow()) setPanelOpen(false);
     setNotesOpen(true);
     setActiveNote(id);
@@ -272,7 +278,9 @@ export function ReaderShell({
           type="button"
           aria-label="Close notes"
           className="absolute inset-x-0 top-12 bottom-0 z-20 bg-black/15 sm:hidden"
-          onClick={() => setNotesOpen(false)}
+          // Its mousedown would also take focus from the note field.
+          onMouseDown={(e) => performance.now() - notesOpenedAt.current < GHOST_CLICK_MS && e.preventDefault()}
+          onClick={() => performance.now() - notesOpenedAt.current > GHOST_CLICK_MS && setNotesOpen(false)}
         />
       )}
 
