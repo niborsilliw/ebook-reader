@@ -128,3 +128,10 @@
     @apply font-sans;
   }
 }
+/* Reader highlights are drawn by epub.js as an SVG layer over the page. It
+   passes mix-blend-mode as an SVG attribute, which browsers ignore, so the
+   colour would wash over the ink; multiplied, it tints the paper and leaves
+   the text dark, like a highlighter. */
+.epub-container svg:has(> g[class^="reader-highlight-"]) {
+  mix-blend-mode: multiply;
+}

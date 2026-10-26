@@ -1,6 +1,6 @@
 // The highlight colours allowed by highlights.color (0002_notes.sql).
 export const HIGHLIGHT_COLORS = [
-  { id: "yellow", label: "Yellow", fill: "#f5d76e" },
+  { id: "yellow", label: "Yellow", fill: "#f2d88a" }, // a warm highlighter on paper, not neon
   { id: "green", label: "Green", fill: "#a9d8a0" },
   { id: "blue", label: "Blue", fill: "#a3c9f1" },
   { id: "pink", label: "Pink", fill: "#f4a9c4" },

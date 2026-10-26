@@ -8,6 +8,7 @@ import { colorFill } from "@/lib/notes/colors";
 import { createClient } from "@/lib/supabase/browser";
 import { BOOKS_BUCKET, locationsPath } from "@/lib/storage-paths";
 import { IMAGE_PAGE_STYLES, markImagePage } from "@/lib/reader/image-pages";
+import { BODY_FONT, installBodyFont } from "@/lib/reader/fonts";
 
 const SAVE_DEBOUNCE_MS = 2000;
 const LOCATION_CHARS = 1600; // granularity of epub.js progress locations
@@ -65,8 +66,6 @@ type Props = {
 
 type Position = { cfi: string; percentage: number | null; spine_href: string };
 type Resizable = { resize(width: number, height: number, cfi?: string): void };
-
-const SERIF = `"Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif`;
 
 export function EpubViewer({
   bookId,
@@ -256,9 +255,9 @@ export function EpubViewer({
           // Keep book content inside the page column on narrow screens.
           "html, body": { "max-width": "100%", "box-sizing": "border-box" },
           body: {
-            "font-family": `${SERIF} !important`,
+            "font-family": `${BODY_FONT} !important`,
             "font-size": "1.08rem",
-            "line-height": "1.65",
+            "line-height": "1.55",
             color: "#1f1d1a",
             background: "transparent",
             "text-rendering": "optimizeLegibility",
@@ -284,6 +283,8 @@ export function EpubViewer({
           contents.document.addEventListener("selectionchange", () => {
             if (contents.document.getSelection()?.isCollapsed !== false) onSelectionRef.current(null);
           });
+          // epub.js waits for this before laying out the chapter's pages.
+          return installBodyFont(contents.document);
         });
 
         rendition.on("selected", (cfiRange: string, contents: { window: Window; sectionIndex?: number }) => {
@@ -502,8 +503,7 @@ export function EpubViewer({
       // One class only: epub.js adds it with classList.add().
       rendition.annotations.highlight(h.cfi_range, { id }, onClick, `reader-highlight-${h.color}`, {
         fill: colorFill(h.color),
-        "fill-opacity": "0.45",
-        "mix-blend-mode": "multiply",
+        "fill-opacity": "0.7", // multiplied over the page (see globals.css), so the text stays dark
       });
       drawn.set(id, h.cfi_range);
     }
@@ -518,8 +518,10 @@ export function EpubViewer({
     <div ref={rootRef} className="absolute inset-0 flex items-stretch">
       <PageButton side="prev" disabled={status !== "ready" || edges.atStart} onClick={() => turn("prev")} />
       {/* min-w-0: epub.js sizes its container in pixels, which would otherwise
-          stop this flex item shrinking to fit a phone screen. */}
-      <div className="relative mx-auto h-full w-full max-w-[44rem] min-w-0 py-6 sm:px-8">
+          stop this flex item shrinking to fit a phone screen. The width and
+          margins give a measure of about 65 characters of Libre Baskerville
+          per line on a desktop or tablet, set in generous white space. */}
+      <div className="relative mx-auto h-full w-full max-w-[44rem] min-w-0 py-8 sm:px-12 sm:py-12">
         <div ref={containerRef} className="h-full w-full overflow-hidden" />
         {status === "ready" && pageMarker}
         {status === "loading" && <Overlay>Opening book…</Overlay>}
