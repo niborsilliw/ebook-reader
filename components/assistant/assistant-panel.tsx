@@ -15,7 +15,8 @@ type Props = {
   ready: boolean;
   getCurrentHref: () => string | null;
   onCite: (spineHref: string) => void;
-  onClose: () => void;
+  /** Shows a close button (omit when the panel's container has its own). */
+  onClose?: () => void;
 };
 
 // A thread is identified locally by a key; a brand-new chat has no
@@ -113,9 +114,11 @@ export function AssistantPanel({ bookId, bookTitle, ready, getCurrentHref, onCit
         <Button variant="outline" size="sm" onClick={() => setThread(newThread())} disabled={!ready}>
           New chat
         </Button>
-        <Button variant="ghost" size="sm" onClick={onClose} aria-label="Close assistant">
-          ✕
-        </Button>
+        {onClose && (
+          <Button variant="ghost" size="sm" onClick={onClose} aria-label="Close assistant">
+            ✕
+          </Button>
+        )}
       </div>
 
       {loadError && <p className="border-b px-4 py-2 text-sm text-destructive">{loadError}</p>}

@@ -10,6 +10,7 @@ import { BOOKS_BUCKET, locationsPath } from "@/lib/storage-paths";
 import { IMAGE_PAGE_STYLES, markImagePage } from "@/lib/reader/image-pages";
 import { BODY_FONT, installBodyFont } from "@/lib/reader/fonts";
 import { lockDownChapter } from "@/lib/reader/content-security";
+import { noteTouchEnd } from "@/lib/reader/last-touch";
 
 const SAVE_DEBOUNCE_MS = 2000;
 const LOCATION_CHARS = 1600; // granularity of epub.js progress locations
@@ -20,6 +21,9 @@ const SWIPE_MAX_MS = 800;
 // A tap: a touch that ends close to where it started, quickly.
 const TAP_SLOP_PX = 10;
 const TAP_MAX_MS = 500;
+// A swipe that starts this close to a screen edge and moves inwards summons
+// that side's drawer instead of turning the page.
+const EDGE_SWIPE_PX = 24;
 const RESIZE_SETTLE_MS = 150;
 // From tablet width up (Tailwind's sm, where the page margins widen) the text
 // is set smaller, like a printed paperback: Libre Baskerville's tall x-height
@@ -79,6 +83,10 @@ type Props = {
   onReady: (api: ReaderApi) => void;
   /** Drawn over the top corner of the page (the bookmark ribbon). */
   pageMarker?: React.ReactNode;
+  /** A touch swipe in from a screen edge. */
+  onEdgeSwipe?: (side: "left" | "right") => void;
+  /** A tap on the page that isn't on a highlight. */
+  onTap?: () => void;
 };
 
 type Position = { cfi: string; percentage: number | null; spine_href: string };
@@ -103,6 +111,8 @@ export function EpubViewer({
   onLocation,
   onReady,
   pageMarker,
+  onEdgeSwipe,
+  onTap,
 }: Props) {
   const rootRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -136,6 +146,10 @@ export function EpubViewer({
   onLocationRef.current = onLocation;
   onReadyRef.current = onReady;
   onSelectionRef.current = onSelection;
+  const onEdgeSwipeRef = useRef(onEdgeSwipe);
+  onEdgeSwipeRef.current = onEdgeSwipe;
+  const onTapRef = useRef(onTap);
+  onTapRef.current = onTap;
 
   useEffect(() => {
     const el = containerRef.current;
@@ -299,6 +313,7 @@ export function EpubViewer({
       swipeStart = e.touches.length === 1 ? { x: t.clientX, y: t.clientY, t: e.timeStamp } : null;
     };
     const onTouchEnd = (e: TouchEvent) => {
+      noteTouchEnd();
       const start = swipeStart;
       swipeStart = null;
       const t = e.changedTouches[0];
@@ -312,8 +327,14 @@ export function EpubViewer({
       // on the click epub.js would forward.
       const tapped = Math.abs(dx) < TAP_SLOP_PX && Math.abs(dy) < TAP_SLOP_PX && e.timeStamp - start.t < TAP_MAX_MS;
       if (tapped && onHighlight && performance.now() - onHighlight.at < TAP_MAX_MS) return openHighlightRef.current(onHighlight.id);
+      const selecting = e.view?.getSelection()?.isCollapsed === false;
+      if (tapped) return void (!selecting && onTapRef.current?.());
       if (Math.abs(dx) < SWIPE_MIN_PX || Math.abs(dx) < 1.5 * Math.abs(dy) || e.timeStamp - start.t > SWIPE_MAX_MS) return;
-      if (e.view?.getSelection()?.isCollapsed === false) return; // dragging a text selection
+      if (selecting) return; // dragging a text selection
+      // Edges are outside the book's iframe, so these touches are the page's
+      // own (in its coordinates), not ones forwarded from the iframe.
+      if (e.view === window && start.x < EDGE_SWIPE_PX && dx > 0) return onEdgeSwipeRef.current?.("left");
+      if (e.view === window && start.x > window.innerWidth - EDGE_SWIPE_PX && dx < 0) return onEdgeSwipeRef.current?.("right");
       turnPage(dx < 0 ? "next" : "prev");
     };
     const root = rootRef.current;

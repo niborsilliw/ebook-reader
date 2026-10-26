@@ -6,8 +6,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import type { TocEntry } from "@/lib/epub/parse";
 import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
-import { TocSheet } from "./toc-sheet";
+import { Drawer } from "./drawer";
+import { SummonControls } from "./summon-controls";
+import { TocList } from "./toc-list";
 import type { BookSelection, ReaderApi, ReaderLocation } from "./epub-viewer";
 import { SelectionBar } from "./selection-bar";
 import { BookmarkRibbon } from "./bookmark-ribbon";
@@ -54,8 +55,11 @@ export function ReaderShell({
   initialHighlights,
   initialBookmarks,
 }: Props) {
-  const [panelOpen, setPanelOpen] = useState(false);
-  const [notesOpen, setNotesOpen] = useState(false);
+  // Navigation is summoned, not resident: Contents & Library from the left,
+  // Notes & Assistant from the right, one at a time, over the page.
+  const [drawer, setDrawer] = useState<"left" | "right" | null>(null);
+  const [rightTab, setRightTab] = useState<"notes" | "assistant">("notes");
+  const [revealControls, setRevealControls] = useState(0);
   const [highlights, setHighlights] = useState(initialHighlights);
   const [bookmarks, setBookmarks] = useState(initialBookmarks);
   const [selection, setSelection] = useState<BookSelection | null>(null);
@@ -64,11 +68,6 @@ export function ReaderShell({
   const [focusNote, setFocusNote] = useState(0);
   const [location, setLocation] = useState<ReaderLocation | null>(null);
   const api = useRef<ReaderApi | null>(null);
-  // When a tap on a highlight opened the notes. The click a phone sends after
-  // the tap lands on the backdrop that has just appeared under the finger,
-  // and mustn't close them again or take focus from the note field.
-  const notesOpenedAt = useRef(0);
-  const GHOST_CLICK_MS = 500;
   const currentHref = useRef<string | null>(null);
 
   const onLocation = useCallback((loc: ReaderLocation) => {
@@ -91,18 +90,12 @@ export function ReaderShell({
     setSelection(null);
   };
 
-  // Below lg there isn't room for the page between two docked panels, so
-  // opening one closes the other.
-  const narrow = () => !window.matchMedia("(min-width: 1024px)").matches;
-  const toggleNotes = () => {
-    if (!notesOpen && narrow()) setPanelOpen(false);
-    if (!notesOpen && selection) done(selection); // the colour bar would float over the panel
-    setNotesOpen((o) => !o);
+  const openDrawer = (side: "left" | "right", tab?: "notes" | "assistant") => {
+    if (selection) done(selection); // the colour bar would float over the drawer
+    if (tab) setRightTab(tab);
+    setDrawer(side);
   };
-  const toggleAssistant = () => {
-    if (!panelOpen && narrow()) setNotesOpen(false);
-    setPanelOpen((o) => !o);
-  };
+  const closeDrawer = () => setDrawer(null);
 
   async function saveHighlight(sel: BookSelection, color: HighlightColor) {
     setSaving(true);
@@ -154,9 +147,7 @@ export function ReaderShell({
 
   // Tapping a highlight in the text opens its note in the panel.
   const openHighlight = (id: string) => {
-    notesOpenedAt.current = performance.now();
-    if (narrow()) setPanelOpen(false);
-    setNotesOpen(true);
+    openDrawer("right", "notes");
     setActiveNote(id);
     setFocusNote((n) => n + 1);
   };
@@ -234,32 +225,100 @@ export function ReaderShell({
   }
 
   useEffect(() => {
-    if (!notesOpen) return;
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setNotesOpen(false);
+    if (!drawer) return;
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setDrawer(null);
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [notesOpen]);
+  }, [drawer]);
 
   return (
-    <div className="flex h-[calc(100dvh-3rem)] bg-[#fbf9f4] text-[#1f1d1a]">
-      {/* Notes: docked on the left from sm up (the width animates, pushing the
-          page over), sliding over the page on phones. */}
-      <aside
-        id="notes-panel"
-        aria-label="Notes and highlights"
-        inert={!notesOpen}
-        className={cn(
-          "shrink-0 overflow-hidden bg-[#fbf9f4] duration-200 ease-out motion-reduce:transition-none",
-          "max-sm:absolute max-sm:inset-x-0 max-sm:top-12 max-sm:bottom-0 max-sm:z-30 max-sm:w-[85%] max-sm:max-w-[20rem] max-sm:shadow-xl",
-          // Visible at once when opening (so its note field can take focus), but
-          // only hidden once the closing slide has finished.
-          notesOpen
-            ? "border-r border-[#e7e2d8] transition-[width,translate] sm:w-[20rem]"
-            : "invisible transition-[width,translate,visibility] max-sm:-translate-x-full sm:w-0",
-        )}
-      >
-        {/* Fixed width so the contents don't reflow while the panel animates. */}
-        <div className="h-full w-full sm:w-[20rem]">
+    <div className="relative flex h-dvh flex-col bg-[#fbf9f4] text-[#1f1d1a]">
+      <h1 className="sr-only">{title}</h1>
+      <main className="relative min-h-0 flex-1">
+        <EpubViewer
+          bookId={bookId}
+          userId={userId}
+          fileUrl={fileUrl}
+          initialCfi={initialCfi}
+          initialPositionAt={initialPositionAt}
+          toc={toc}
+          highlights={highlights}
+          onSelection={setSelection}
+          onHighlightClick={openHighlight}
+          onLocation={onLocation}
+          onReady={(r) => (api.current = r)}
+          pageMarker={<BookmarkRibbon marked={!!pageBookmark} busy={saving} onToggle={() => void toggleBookmark()} />}
+          onEdgeSwipe={(side) => openDrawer(side)}
+          onTap={() => setRevealControls((n) => n + 1)}
+        />
+      </main>
+
+      {selection && (
+        <SelectionBar selection={selection} busy={saving} onHighlight={(color) => void saveHighlight(selection, color)} />
+      )}
+
+      {/* Like a printed page: the chapter and a page number, nothing to chase. */}
+      <footer className="flex h-9 shrink-0 items-center justify-between gap-4 px-6 font-serif text-xs text-[#8c8478]">
+        <span className="truncate italic">{location?.chapter ?? ""}</span>
+        <span className="tabular-nums" aria-label={location?.page ? `Page ${location.page}` : undefined}>
+          {location?.page ?? ""}
+        </span>
+      </footer>
+
+      <SummonControls hidden={drawer !== null} revealToken={revealControls} onOpen={(side) => openDrawer(side)} />
+
+      <Drawer id="contents-drawer" side="left" label="Contents and library" open={drawer === "left"} onClose={closeDrawer} className="max-w-[20rem]">
+        <div className="shrink-0 border-b border-[#e7e2d8] px-3 pt-3 pb-4">
+          <div className="flex items-center justify-between">
+            <Button variant="ghost" size="sm" nativeButton={false} render={<Link href="/library" />}>
+              ← Library
+            </Button>
+            <Button variant="ghost" size="sm" onClick={closeDrawer} aria-label="Close contents">
+              ✕
+            </Button>
+          </div>
+          <p className="mt-3 px-2 font-serif text-base leading-snug italic">{title}</p>
+          {author && <p className="mt-0.5 px-2 text-xs tracking-wide text-[#6b655c] uppercase">{author}</p>}
+        </div>
+        <div className="min-h-0 flex-1 overflow-y-auto">
+          <h2 className="px-5 pt-4 text-xs tracking-wide text-[#6b655c] uppercase">Contents</h2>
+          <TocList
+            toc={toc}
+            current={location?.chapter ?? null}
+            onSelect={(href) => {
+              api.current?.goTo(href);
+              closeDrawer();
+            }}
+          />
+        </div>
+      </Drawer>
+
+      <Drawer id="notes-drawer" side="right" label="Notes and assistant" open={drawer === "right"} onClose={closeDrawer} className="max-w-[24rem]">
+        <div role="tablist" aria-label="Notes and assistant" className="flex h-12 shrink-0 items-center gap-1 border-b border-[#e7e2d8] px-3">
+          {(["notes", "assistant"] as const).map((tab) => (
+            <button
+              key={tab}
+              type="button"
+              role="tab"
+              id={`tab-${tab}`}
+              aria-selected={rightTab === tab}
+              aria-controls={`tabpanel-${tab}`}
+              onClick={() => setRightTab(tab)}
+              className={
+                "rounded-md px-3 py-1.5 font-serif text-[0.95rem] " +
+                (rightTab === tab ? "bg-black/[0.06] text-[#1f1d1a] italic" : "text-[#6b655c] hover:bg-black/5")
+              }
+            >
+              {tab === "notes" ? "Notes" : "Assistant"}
+            </button>
+          ))}
+          <span className="flex-1" />
+          <Button variant="ghost" size="sm" onClick={closeDrawer} aria-label="Close notes and assistant">
+            ✕
+          </Button>
+        </div>
+        {/* Both stay mounted so a conversation or note draft survives a tab switch. */}
+        <div id="tabpanel-notes" role="tabpanel" aria-labelledby="tab-notes" hidden={rightTab !== "notes"} className="min-h-0 flex-1">
           <NotesPanel
             highlights={highlights}
             bookmarks={bookmarks}
@@ -269,103 +328,18 @@ export function ReaderShell({
             onSaveNote={saveNote}
             onDeleteHighlight={(h) => void deleteHighlight(h)}
             onDeleteBookmark={(b) => void deleteBookmark(b)}
-            onClose={() => setNotesOpen(false)}
           />
         </div>
-      </aside>
-      {notesOpen && (
-        <button
-          type="button"
-          aria-label="Close notes"
-          className="absolute inset-x-0 top-12 bottom-0 z-20 bg-black/15 sm:hidden"
-          // Its mousedown would also take focus from the note field.
-          onMouseDown={(e) => performance.now() - notesOpenedAt.current < GHOST_CLICK_MS && e.preventDefault()}
-          onClick={() => performance.now() - notesOpenedAt.current > GHOST_CLICK_MS && setNotesOpen(false)}
-        />
-      )}
-
-      <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex items-center gap-2 px-4 py-2 text-sm">
-          <Button variant="ghost" size="sm" nativeButton={false} render={<Link href="/library" />}>
-            ← Library
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            aria-expanded={notesOpen}
-            aria-controls="notes-panel"
-            onClick={toggleNotes}
-          >
-            Notes
-          </Button>
-          <div className="min-w-0 flex-1 text-center">
-            <p className="truncate font-serif text-[0.95rem] italic">{title}</p>
-            {author && <p className="truncate text-xs tracking-wide text-[#6b655c] uppercase">{author}</p>}
-          </div>
-          <TocSheet toc={toc} onSelect={(href) => api.current?.goTo(href)} />
-          <Button
-            variant="ghost"
-            size="sm"
-            aria-expanded={panelOpen}
-            aria-controls="assistant-panel"
-            onClick={toggleAssistant}
-          >
-            Assistant
-          </Button>
-        </header>
-
-        <main className="relative min-h-0 flex-1">
-          <EpubViewer
+        <div id="tabpanel-assistant" role="tabpanel" aria-labelledby="tab-assistant" hidden={rightTab !== "assistant"} className="min-h-0 flex-1 bg-background">
+          <AssistantPanel
             bookId={bookId}
-            userId={userId}
-            fileUrl={fileUrl}
-            initialCfi={initialCfi}
-            initialPositionAt={initialPositionAt}
-            toc={toc}
-            highlights={highlights}
-            onSelection={setSelection}
-            onHighlightClick={openHighlight}
-            onLocation={onLocation}
-            onReady={(r) => (api.current = r)}
-            pageMarker={<BookmarkRibbon marked={!!pageBookmark} busy={saving} onToggle={() => void toggleBookmark()} />}
+            bookTitle={title}
+            ready={ready}
+            getCurrentHref={() => currentHref.current}
+            onCite={(href) => api.current?.goTo(href)}
           />
-        </main>
-
-        {selection && (
-          <SelectionBar
-            selection={selection}
-            busy={saving}
-            onHighlight={(color) => void saveHighlight(selection, color)}
-          />
-        )}
-
-        {/* Like a printed page: the chapter and a page number, nothing to chase. */}
-        <footer className="flex h-9 items-center justify-between gap-4 px-6 font-serif text-xs text-[#8c8478]">
-          <span className="truncate italic">{location?.chapter ?? ""}</span>
-          <span className="tabular-nums" aria-label={location?.page ? `Page ${location.page}` : undefined}>
-            {location?.page ?? ""}
-          </span>
-        </footer>
-      </div>
-
-      <aside
-        id="assistant-panel"
-        aria-label="Research assistant"
-        hidden={!panelOpen}
-        className={cn(
-          "w-full shrink-0 border-l border-[#e7e2d8] bg-background sm:w-[24rem]",
-          "max-sm:absolute max-sm:inset-x-0 max-sm:bottom-0 max-sm:top-12 max-sm:z-20",
-        )}
-      >
-        <AssistantPanel
-          bookId={bookId}
-          bookTitle={title}
-          ready={ready}
-          getCurrentHref={() => currentHref.current}
-          onCite={(href) => api.current?.goTo(href)}
-          onClose={() => setPanelOpen(false)}
-        />
-      </aside>
+        </div>
+      </Drawer>
     </div>
   );
 }

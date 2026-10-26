@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Button } from "@/components/ui/button";
 import { colorFill } from "@/lib/notes/colors";
 import { compareCfi, groupByChapter } from "@/lib/notes/order";
 import type { Bookmark, Highlight } from "@/lib/notes/types";
@@ -17,7 +16,6 @@ type Props = {
   onSaveNote: (id: string, note: string | null) => Promise<boolean>;
   onDeleteHighlight: (h: Highlight) => void;
   onDeleteBookmark: (b: Bookmark) => void;
-  onClose: () => void;
 };
 
 // Bookmarks first, then highlights grouped by chapter; both in reading order.
@@ -30,20 +28,12 @@ export function NotesPanel({
   onSaveNote,
   onDeleteHighlight,
   onDeleteBookmark,
-  onClose,
 }: Props) {
   const chapters = useMemo(() => groupByChapter(highlights), [highlights]);
   const marks = useMemo(() => [...bookmarks].sort((a, b) => compareCfi(a.cfi, b.cfi)), [bookmarks]);
 
   return (
     <div className="flex h-full flex-col bg-[#fbf9f4]">
-      <div className="flex h-12 shrink-0 items-center gap-2 border-b border-[#e7e2d8] px-3">
-        <h2 className="flex-1 truncate pl-1 font-serif text-[0.95rem] italic">Notes &amp; highlights</h2>
-        <Button variant="ghost" size="sm" onClick={onClose} aria-label="Close notes">
-          ✕
-        </Button>
-      </div>
-
       <div className="min-h-0 flex-1 overflow-y-auto">
         <Section title="Bookmarks">
           {marks.length === 0 ? (
