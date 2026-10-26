@@ -671,8 +671,9 @@ export function EpubViewer({
           stop this flex item shrinking to fit a phone screen. The width and
           margins give a measure of 65–70 characters of Libre Baskerville (at
           WIDE_FONT_SIZE) per line on a desktop or tablet, set in generous
-          white space. */}
-      <div className="relative mx-auto h-full w-full max-w-[38rem] min-w-0 py-8 sm:px-12 sm:py-12">
+          white space. Very large screens let the page breathe a little wider,
+          still within a readable line (about 73 characters). */}
+      <div className="relative mx-auto h-full w-full max-w-[38rem] min-w-0 py-8 sm:px-12 sm:py-12 min-[1400px]:max-w-[41rem]">
         <div ref={containerRef} className="h-full w-full overflow-hidden" />
         {status === "ready" && pageMarker}
         {status === "loading" && <Overlay>Opening book…</Overlay>}

@@ -14,7 +14,6 @@ import { SelectionBar } from "./selection-bar";
 import { BookmarkRibbon } from "./bookmark-ribbon";
 import { AssistantPanel } from "@/components/assistant/assistant-panel";
 import { NotesPanel } from "@/components/notes/notes-panel";
-import { Notebook } from "@/components/notes/notebook";
 import { createClient } from "@/lib/supabase/browser";
 import { BOOKMARK_COLUMNS, HIGHLIGHT_COLUMNS, type Bookmark, type Highlight } from "@/lib/notes/types";
 import type { HighlightColor } from "@/lib/notes/colors";
@@ -39,15 +38,12 @@ type Props = {
   ready: boolean;
   initialHighlights: Highlight[];
   initialBookmarks: Bookmark[];
-  initialNotebook: string;
 };
 
 const BOOKMARK_LABEL_CHARS = 80;
 
-// The right drawer's tabs, top to bottom of the reader's thinking: the book's
-// notebook, the notes on its passages, and the assistant.
+// The right drawer's tabs.
 const RIGHT_TABS = [
-  { id: "notebook", label: "Notebook" },
   { id: "notes", label: "Notes" },
   { id: "assistant", label: "Assistant" },
 ] as const;
@@ -65,7 +61,6 @@ export function ReaderShell({
   ready,
   initialHighlights,
   initialBookmarks,
-  initialNotebook,
 }: Props) {
   // Navigation is summoned, not resident: Contents & Library from the left,
   // Notes & Assistant from the right, one at a time, over the page.
@@ -329,10 +324,7 @@ export function ReaderShell({
             ✕
           </Button>
         </div>
-        {/* All stay mounted so a conversation or draft survives a tab switch. */}
-        <div id="tabpanel-notebook" role="tabpanel" aria-labelledby="tab-notebook" hidden={rightTab !== "notebook"} className="min-h-0 flex-1">
-          <Notebook bookId={bookId} initialBody={initialNotebook} />
-        </div>
+        {/* Both stay mounted so a conversation or note draft survives a tab switch. */}
         <div id="tabpanel-notes" role="tabpanel" aria-labelledby="tab-notes" hidden={rightTab !== "notes"} className="min-h-0 flex-1">
           <NotesPanel
             highlights={highlights}

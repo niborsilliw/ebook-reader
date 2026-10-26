@@ -217,6 +217,14 @@ describe("prompt building", () => {
     expect(messages[0].content).toContain("No excerpts from the book matched this question.");
   });
 
+  it("tells both prompts not to end replies with questions, unless the reader asks to be quizzed", () => {
+    for (const mode of ["companion", "grounded"] as const) {
+      const system = systemPrompt("Ethics", mode);
+      expect(system).toMatch(/Never (end|finish) (a reply )?with a question/);
+      expect(system).toMatch(/quizzed/);
+    }
+  });
+
   it("defaults to the companion prompt: own knowledge and opinions, citations only when needed", () => {
     const s = systemPrompt("Ethics");
     expect(s).toBe(systemPrompt("Ethics", "companion"));

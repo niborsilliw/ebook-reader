@@ -27,12 +27,11 @@ export default async function ReadPage({ params }: { params: Promise<{ bookId: s
     .maybeSingle();
   if (!book) notFound();
 
-  const [{ data: signed }, { data: position, error: positionError }, highlights, bookmarks, notebook] = await Promise.all([
+  const [{ data: signed }, { data: position, error: positionError }, highlights, bookmarks] = await Promise.all([
     supabase.storage.from(BOOKS_BUCKET).createSignedUrl(book.file_path, SIGNED_URL_SECONDS),
     supabase.from("reading_positions").select("cfi, updated_at").eq("book_id", bookId).maybeSingle(),
     supabase.from("highlights").select(HIGHLIGHT_COLUMNS).eq("book_id", bookId),
     supabase.from("bookmarks").select(BOOKMARK_COLUMNS).eq("book_id", bookId),
-    supabase.from("notebooks").select("body").eq("book_id", bookId).maybeSingle(),
   ]);
   if (!signed?.signedUrl) throw new Error("Could not open this book's file");
   // Opening at the start is a safe fallback, but a failed read shouldn't be silent.
@@ -40,7 +39,6 @@ export default async function ReadPage({ params }: { params: Promise<{ bookId: s
   // The book still opens without them; the notes panel just starts empty.
   if (highlights.error) console.error("load highlights failed", bookId, highlights.error.message);
   if (bookmarks.error) console.error("load bookmarks failed", bookId, bookmarks.error.message);
-  if (notebook.error) console.error("load notebook failed", bookId, notebook.error.message);
 
   return (
     <ReaderShell
@@ -55,7 +53,6 @@ export default async function ReadPage({ params }: { params: Promise<{ bookId: s
       ready={book.status === "ready"}
       initialHighlights={highlights.data ?? []}
       initialBookmarks={bookmarks.data ?? []}
-      initialNotebook={notebook.data?.body ?? ""}
     />
   );
 }
