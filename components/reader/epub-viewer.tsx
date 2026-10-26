@@ -17,6 +17,12 @@ const LOCATION_CHARS = 1600; // granularity of epub.js progress locations
 const SWIPE_MIN_PX = 50;
 const SWIPE_MAX_MS = 800;
 const RESIZE_SETTLE_MS = 150;
+// From tablet width up (Tailwind's sm, where the page margins widen) the text
+// is set smaller, like a printed paperback: Libre Baskerville's tall x-height
+// makes the 16px body most books ask for read as large print. Phones keep the
+// book's own size.
+const WIDE_QUERY = "(min-width: 640px)";
+const WIDE_FONT_SIZE = "13.5px";
 // How often an open reader checks whether another device has moved on.
 const SYNC_POLL_MS = 10_000;
 
@@ -251,6 +257,7 @@ export function EpubViewer({
         renditionRef.current = rendition;
         drawnRef.current.clear();
 
+        applyTypeScale(rendition);
         rendition.themes.default({
           // Keep book content inside the page column on narrow screens.
           "html, body": { "max-width": "100%", "box-sizing": "border-box" },
@@ -451,6 +458,19 @@ export function EpubViewer({
     };
     window.addEventListener("keyup", onWindowKey);
 
+    // Sets (or clears) the tablet/desktop body size. An !important inline
+    // style, as the book's own stylesheet often sizes the body itself. epub.js
+    // applies it to each chapter before laying it out.
+    let wideType: boolean | null = null;
+    function applyTypeScale(r: Rendition) {
+      const wide = window.matchMedia(WIDE_QUERY).matches;
+      if (wide === wideType) return;
+      wideType = wide;
+      if (wide) r.themes.override("font-size", WIDE_FONT_SIZE, true);
+      // removeOverride exists in epub.js but is missing from its types.
+      else (r.themes as unknown as { removeOverride(name: string): void }).removeOverride("font-size");
+    }
+
     // Re-lay out pages when the container changes size (window resize or a
     // panel opening/closing). Re-paginating is expensive, so wait until the
     // size settles rather than doing it on every frame of a panel animation.
@@ -461,7 +481,11 @@ export function EpubViewer({
         const r = renditionRef.current;
         // epub.js throws if asked to resize before its first page is laid out.
         // resize()'s optional CFI to re-display at is missing from epub.js's types.
-        if (r && displayed) (r as unknown as Resizable).resize(el.clientWidth, el.clientHeight, anchor ?? undefined);
+        if (!r || !displayed) return;
+        // Crossing the tablet breakpoint changes the margins too, so a type
+        // size change always arrives here and is laid out with the resize.
+        applyTypeScale(r);
+        (r as unknown as Resizable).resize(el.clientWidth, el.clientHeight, anchor ?? undefined);
       }, RESIZE_SETTLE_MS);
     });
     observer.observe(el);
@@ -520,9 +544,10 @@ export function EpubViewer({
       <PageButton side="prev" disabled={status !== "ready" || edges.atStart} onClick={() => turn("prev")} />
       {/* min-w-0: epub.js sizes its container in pixels, which would otherwise
           stop this flex item shrinking to fit a phone screen. The width and
-          margins give a measure of about 65 characters of Libre Baskerville
-          per line on a desktop or tablet, set in generous white space. */}
-      <div className="relative mx-auto h-full w-full max-w-[44rem] min-w-0 py-8 sm:px-12 sm:py-12">
+          margins give a measure of 65–70 characters of Libre Baskerville (at
+          WIDE_FONT_SIZE) per line on a desktop or tablet, set in generous
+          white space. */}
+      <div className="relative mx-auto h-full w-full max-w-[38rem] min-w-0 py-8 sm:px-12 sm:py-12">
         <div ref={containerRef} className="h-full w-full overflow-hidden" />
         {status === "ready" && pageMarker}
         {status === "loading" && <Overlay>Opening book…</Overlay>}
