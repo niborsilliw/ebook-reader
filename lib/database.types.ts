@@ -301,35 +301,6 @@ export type Database = {
           },
         ]
       }
-      notebooks: {
-        Row: {
-          body: string
-          book_id: string
-          updated_at: string
-          user_id: string
-        }
-        Insert: {
-          body?: string
-          book_id: string
-          updated_at?: string
-          user_id?: string
-        }
-        Update: {
-          body?: string
-          book_id?: string
-          updated_at?: string
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "notebooks_book_id_fkey"
-            columns: ["book_id"]
-            isOneToOne: false
-            referencedRelation: "books"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       reading_positions: {
         Row: {
           book_id: string
