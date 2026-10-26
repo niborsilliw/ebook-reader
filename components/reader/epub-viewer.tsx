@@ -279,6 +279,7 @@ export function EpubViewer({
         // Covers and other single-picture pages: centred at 60% width instead of full-bleed.
         rendition.hooks.content.register((contents: { document: Document }) => {
           markImagePage(contents.document);
+          declareLanguage(contents.document, book?.packaging?.metadata?.language);
           // Hide the selection actions once the selection is gone (tap elsewhere).
           contents.document.addEventListener("selectionchange", () => {
             if (contents.document.getSelection()?.isCollapsed !== false) onSelectionRef.current(null);
@@ -556,6 +557,17 @@ function Overlay({ children }: { children: React.ReactNode }) {
       {children}
     </div>
   );
+}
+
+// Browsers only hyphenate text whose language they know, and many EPUBs
+// declare it in their metadata but not on each chapter. Without it, justified
+// lines on a phone open wide gaps between words.
+function declareLanguage(doc: Document, language: string | undefined) {
+  const root = doc.documentElement;
+  if (root.lang || root.getAttributeNS("http://www.w3.org/XML/1998/namespace", "lang")) return;
+  const tag = language?.trim();
+  if (!tag || !/^[a-z]{2,3}(-[a-z0-9]{1,8})*$/i.test(tag)) return;
+  root.lang = tag;
 }
 
 // The text visible on the screen, whitespace collapsed ("" for a picture page).
