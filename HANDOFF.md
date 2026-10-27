@@ -207,7 +207,7 @@ By milestone:
 | `dc6ba1f` … `463d443` | 23–26 Oct | Cross-device position sync, bookmark ribbon and page numbers, Libre Baskerville and the 65-character measure, hyphenation, page-turn slide, iPhone/iPad fixes (the chapter CSP sandbox), summoned drawers, two-page spread |
 | `cf35b68` … `d3192fc` | 27 Oct | Tap-to-select (word, sentence, paragraph), hairline chrome icons, spread from 1,000 px, invisible page-turn margins |
 | `1249048` … `64b1f07` | 27 Oct | Exa web search: the tool loop, the "Searching the book / web" status line, web links and emphasis in answers, footnote-letter web citations with chips, search-when-outside-the-book rules, hedging weak or single-source results |
-| `914f879` (**v1.0.0**) | 27 Oct | This handoff document |
+| `914f879` … tip (**v1.0.0** on the last of these) | 27 Oct | This handoff document and its history summary |
 
 ## 7. Working on the code
 
