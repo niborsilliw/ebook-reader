@@ -43,9 +43,10 @@ const WIDE_FONT_SIZE = "13.5px";
 // From here up the book opens as a two-page spread, like a physical book.
 // Each page's text is a little under half the container (epub.js puts a
 // gutter between and around the pages), so below this the pages would be
-// cramped: about 46 characters a line at 1000px, 51 here, 58 at 1280px. It
-// must match the column's min-[1120px] width class below.
-const SPREAD_QUERY = "(min-width: 1120px)";
+// cramped: about 46 characters a line here, 51 at 1120px, 58 at 1280px. Set
+// low enough to catch every iPad in landscape (the smaller ones are 1080px
+// wide). It must match the column's min-[1000px] width class below.
+const SPREAD_QUERY = "(min-width: 1000px)";
 // A page turn slides the new page in from the side it came from: short and
 // shallow, so the eye can follow the change without a 3D flip.
 const PAGE_SLIDE_MS = 180;
@@ -814,9 +815,9 @@ export function EpubViewer({
           margins give a measure of 65–70 characters of Libre Baskerville (at
           WIDE_FONT_SIZE) per line on a desktop or tablet, set in generous
           white space. From SPREAD_QUERY up it holds a two-page spread of about
-          51–58 characters a page, growing on bigger screens (about 60, then
+          46–58 characters a page, growing on bigger screens (about 60, then
           65) so the book fills more of the screen without overlong lines. */}
-      <div className="relative mx-auto h-full w-full max-w-[38rem] min-w-0 py-8 sm:px-12 sm:py-12 min-[1120px]:max-w-[68rem] min-[1400px]:max-w-[72rem] min-[1700px]:max-w-[76rem]">
+      <div className="relative mx-auto h-full w-full max-w-[38rem] min-w-0 py-8 sm:px-12 sm:py-12 min-[1000px]:max-w-[68rem] min-[1400px]:max-w-[72rem] min-[1700px]:max-w-[76rem]">
         <div ref={containerRef} className="h-full w-full overflow-hidden" />
         {status === "ready" && pageMarker}
         {status === "loading" && <Overlay>Opening book…</Overlay>}
