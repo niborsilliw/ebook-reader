@@ -11,7 +11,8 @@ This document covers what you need to take the codebase over: the stack, how the
 3. [The database](#3-the-database)
 4. [Design mandates](#4-design-mandates)
 5. [Open items](#5-open-items)
-6. [Working on the code](#6-working-on-the-code)
+6. [History](#6-history)
+7. [Working on the code](#7-working-on-the-code)
 
 ## 1. The stack
 
@@ -186,7 +187,29 @@ Live behaviour is best checked with real Mistral and Exa calls through `buildPro
 - **Cover bars:** grey bars have been reported either side of some cover images in the reader (probably the EPUB's own wrapper styling).
 - **Untested on screen:** the latest assistant UI changes (status line, web citation chips) are covered by component tests but haven't been checked in a signed-in browser on every device.
 
-## 6. Working on the code
+## 6. History
+
+The history on `main` is left as it was made: it is published, Vercel deploys from it, and the release tags point into it. A few commits are noise from debugging and can be skipped when reading the log:
+
+- `5f176a2` "trigger first production deploy" is an empty commit that started the first Vercel build.
+- `b4d70a5` and `b7049a7` add and then remove a `[COMPANION]` debug token in the prompt.
+- `30bee9c` briefly moved the companion to Claude Haiku; `c57c9ac` moved it back to Mistral.
+- `55d92cd` added a free-form Notebook; `bfd0344`, `e576f19` and `463d443` removed it again (migration 0003 drops the table wherever it still exists).
+
+By milestone:
+
+| Range | Dates | What was built |
+|---|---|---|
+| `4969648` … `52fdce5` | 23 Sep | Next.js app, Supabase schema and storage bucket, magic-link auth, EPUB parser and chunker, library with direct-to-Storage upload |
+| `3255291` … `74d223a` | 24 Sep | Ingest worker (lease-based, resumable), the reader with a saved position, the RAG chat with citations, chapter-accurate labels and reindex, follow-up questions |
+| `d5e612b` … `7c6c74b` (**v0.2.0**) | 9–21 Oct | Cover pages, first production deploy, phone layout fix, the companion prompt, reliable position restore |
+| `bbc37c7` … `a378fed` (**v0.3.0**) | 21–22 Oct | Exact page restore, swipe page turns, highlights, notes, bookmarks and highlight colours |
+| `dc6ba1f` … `463d443` | 23–26 Oct | Cross-device position sync, bookmark ribbon and page numbers, Libre Baskerville and the 65-character measure, hyphenation, page-turn slide, iPhone/iPad fixes (the chapter CSP sandbox), summoned drawers, two-page spread |
+| `cf35b68` … `d3192fc` | 27 Oct | Tap-to-select (word, sentence, paragraph), hairline chrome icons, spread from 1,000 px, invisible page-turn margins |
+| `1249048` … `64b1f07` | 27 Oct | Exa web search: the tool loop, the "Searching the book / web" status line, web links and emphasis in answers, footnote-letter web citations with chips, search-when-outside-the-book rules, hedging weak or single-source results |
+| `914f879` (**v1.0.0**) | 27 Oct | This handoff document |
+
+## 7. Working on the code
 
 ```bash
 npm install
