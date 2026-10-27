@@ -4,6 +4,7 @@ import { Fragment } from "react";
 import type { ChatUIMessage } from "@/lib/chat/types";
 import type { Citation } from "@/lib/rag/types";
 import { citedNumbers } from "@/lib/rag/prompt";
+import { splitLinks } from "@/lib/chat/links";
 import { CitationChips } from "./citation-chips";
 
 type Props = {
@@ -37,32 +38,29 @@ export function MessageView({ message, bookTitle, streaming, onCite }: Props) {
         <AnswerText text={text} byN={byN} onCite={onCite} />
         {streaming && !searching && <span className="ml-0.5 inline-block h-4 w-1.5 animate-pulse bg-foreground/40 align-middle" />}
       </div>
-      {searching && <p className="animate-pulse font-serif text-sm text-[#6b655c] italic">Looking that up…</p>}
+      {searching && <p className="animate-pulse font-serif text-sm text-[#6b655c] italic">Searching the web…</p>}
       {!streaming && cited.length > 0 && <CitationChips citations={cited} bookTitle={bookTitle} onCite={onCite} />}
     </div>
   );
 }
 
 /**
- * Web addresses the answer cites (from a web search) as links, shown by
- * their site's name so a long address doesn't break up the prose.
+ * Web addresses the answer cites (from a web search) as links that open in a
+ * new tab, shown by their site's name so a long address doesn't break up the
+ * prose.
  */
 function WebLinks({ text }: { text: string }) {
-  const pieces = text.split(/(https?:\/\/[^\s)<>]*[^\s)<>.,;:!?'"])/g);
   return (
     <>
-      {pieces.map((piece, i) => {
-        if (i % 2 === 0) return <Fragment key={i}>{piece}</Fragment>;
-        let host = piece;
-        try {
-          host = new URL(piece).hostname.replace(/^www\./, "");
-        } catch {}
-        return (
-          <a key={i} href={piece} target="_blank" rel="noopener noreferrer" title={piece} className="text-primary underline underline-offset-2">
-            {host}
+      {splitLinks(text).map((piece, i) =>
+        typeof piece === "string" ? (
+          <Fragment key={i}>{piece}</Fragment>
+        ) : (
+          <a key={i} href={piece.href} target="_blank" rel="noopener noreferrer" title={piece.href} className="text-primary underline underline-offset-2">
+            {piece.label}
           </a>
-        );
-      })}
+        ),
+      )}
     </>
   );
 }
