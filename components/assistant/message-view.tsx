@@ -38,6 +38,30 @@ export function MessageView({ message, bookTitle, streaming, onCite }: Props) {
   );
 }
 
+/**
+ * Web addresses the answer cites (from a web search) as links, shown by
+ * their site's name so a long address doesn't break up the prose.
+ */
+function WebLinks({ text }: { text: string }) {
+  const pieces = text.split(/(https?:\/\/[^\s)<>]*[^\s)<>.,;:!?'"])/g);
+  return (
+    <>
+      {pieces.map((piece, i) => {
+        if (i % 2 === 0) return <Fragment key={i}>{piece}</Fragment>;
+        let host = piece;
+        try {
+          host = new URL(piece).hostname.replace(/^www\./, "");
+        } catch {}
+        return (
+          <a key={i} href={piece} target="_blank" rel="noopener noreferrer" title={piece} className="text-primary underline underline-offset-2">
+            {host}
+          </a>
+        );
+      })}
+    </>
+  );
+}
+
 /** Renders the answer with [n] markers as small links to the cited passage. */
 function AnswerText({
   text,
@@ -53,7 +77,7 @@ function AnswerText({
     <>
       {pieces.map((piece, i) => {
         const marker = piece.match(/^\[(\d+(?:\s*,\s*\d+)*)\]$/);
-        if (!marker) return <Fragment key={i}>{piece}</Fragment>;
+        if (!marker) return <WebLinks key={i} text={piece} />;
         return (
           <sup key={i} className="ml-0.5 font-sans text-[0.7rem]">
             {marker[1].split(",").map((raw, j) => {

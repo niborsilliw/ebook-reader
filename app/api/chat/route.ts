@@ -7,6 +7,7 @@ import { embedTexts } from "@/lib/mistral";
 import { buildRetrievalQuery, retrieveSources, type MatchRow } from "@/lib/rag/retrieve";
 import { buildPrompt, citationsFor, conversationTitle, HISTORY_MESSAGES, promptMode } from "@/lib/rag/prompt";
 import { toCitation } from "@/lib/rag/types";
+import { webSearchOptions } from "@/lib/rag/web-search";
 import type { ChatUIMessage } from "@/lib/chat/types";
 import { chatErrorMessage, upstreamStatus } from "@/lib/chat/errors";
 
@@ -14,6 +15,8 @@ export const maxDuration = 60;
 
 const CHAT_MODEL = process.env.MISTRAL_CHAT_MODEL || "mistral-medium-latest";
 const PROMPT_MODE = promptMode(process.env.CHAT_PROMPT_MODE);
+// The companion can search the web when the reader asks for outside context.
+const WEB_SEARCH = PROMPT_MODE === "companion" && Boolean(process.env.EXA_API_KEY);
 
 const Body = z.object({
   bookId: z.uuid(),
@@ -104,7 +107,7 @@ export async function POST(request: Request) {
     .insert({ conversation_id: conversationId, role: "user", content: message });
   if (userMsgError) return NextResponse.json({ error: "Could not save your message" }, { status: 500 });
 
-  const prompt = buildPrompt({ bookTitle, sources, history, question: message, mode: PROMPT_MODE });
+  const prompt = buildPrompt({ bookTitle, sources, history, question: message, mode: PROMPT_MODE, webSearch: WEB_SEARCH });
   const convId = conversationId;
 
   const stream = createUIMessageStream<ChatUIMessage>({
@@ -119,11 +122,14 @@ export async function POST(request: Request) {
         system: prompt.system,
         messages: prompt.messages,
         temperature: PROMPT_MODE === "grounded" ? 0.2 : 0.6,
+        ...(WEB_SEARCH && webSearchOptions()),
       });
       writer.merge(result.toUIMessageStream<ChatUIMessage>());
 
       // Persist once the full answer is known; the stream stays open until then.
-      const text = await result.text;
+      // `text` is only the last step's; a step before a search may have
+      // written a line too, and the reader saw it.
+      const text = (await result.steps).map((step) => step.text).join("");
       const [{ error: saveError }] = await Promise.all([
         supabase.from("messages").insert({
           conversation_id: convId,
