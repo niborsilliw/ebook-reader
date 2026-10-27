@@ -65,7 +65,10 @@ const webSearchTool = tool({
   inputSchema: z.object({ query: z.string().min(1).max(300).describe("What to search for, as a short search query") }),
   execute: async ({ query }) => {
     try {
-      return formatWebResults(await searchWeb(query));
+      const results = await searchWeb(query);
+      // So whoever runs the server can see when the companion went outside the book.
+      console.info(`web search: ${JSON.stringify(query)} → ${results.length} results`);
+      return formatWebResults(results);
     } catch (err) {
       console.error("web search failed", (err as Error).message);
       return "(The web search failed. Answer from what you know, and say that you couldn't search.)";
