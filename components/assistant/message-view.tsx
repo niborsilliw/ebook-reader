@@ -4,6 +4,7 @@ import { Fragment } from "react";
 import type { ChatUIMessage } from "@/lib/chat/types";
 import type { Citation } from "@/lib/rag/types";
 import { citedNumbers } from "@/lib/rag/prompt";
+import { splitEmphasis } from "@/lib/chat/emphasis";
 import { splitLinks } from "@/lib/chat/links";
 import { CitationChips } from "./citation-chips";
 
@@ -54,12 +55,23 @@ function WebLinks({ text }: { text: string }) {
     <>
       {splitLinks(text).map((piece, i) =>
         typeof piece === "string" ? (
-          <Fragment key={i}>{piece}</Fragment>
+          <Emphasis key={i} text={piece} />
         ) : (
           <a key={i} href={piece.href} target="_blank" rel="noopener noreferrer" title={piece.href} className="text-primary underline underline-offset-2">
             {piece.label}
           </a>
         ),
+      )}
+    </>
+  );
+}
+
+/** *Italics* and **bold** as the model marks them, without the marks. */
+function Emphasis({ text }: { text: string }) {
+  return (
+    <>
+      {splitEmphasis(text).map((piece, i) =>
+        piece.em ? <em key={i}>{piece.text}</em> : piece.strong ? <strong key={i} className="font-semibold">{piece.text}</strong> : <Fragment key={i}>{piece.text}</Fragment>,
       )}
     </>
   );
