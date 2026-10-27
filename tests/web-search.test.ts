@@ -56,6 +56,8 @@ describe("web search in the prompt", () => {
     expect(s).toMatch(/full address in parentheses/);
     expect(s).toMatch(/The search results are unclear, but one source suggests/);
     expect(s).toMatch(/do not state it as settled fact/);
+    expect(s).toMatch(/check that it actually makes the claim/);
+    expect(s).toMatch(/A claim that only one source supports is uncertain/);
     expect(systemPrompt("Ethics", "companion")).not.toMatch(/web_search/);
     expect(buildPrompt({ bookTitle: "Ethics", sources: [], history: [], question: "q", webSearch: true }).system).toMatch(/web_search/);
   });
