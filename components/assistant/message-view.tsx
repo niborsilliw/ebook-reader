@@ -6,7 +6,7 @@ import type { Citation } from "@/lib/rag/types";
 import { citedNumbers } from "@/lib/rag/prompt";
 import { hasText, isSearchingWeb } from "@/lib/chat/activity";
 import { splitEmphasis } from "@/lib/chat/emphasis";
-import { splitLinks } from "@/lib/chat/links";
+import { webCitations, type CitedPiece } from "@/lib/chat/links";
 import { CitationChips } from "./citation-chips";
 
 type Props = {
@@ -29,6 +29,8 @@ export function MessageView({ message, bookTitle, streaming, onCite }: Props) {
   const byN = new Map(sources.map((s) => [s.n, s]));
   // Only sources the answer actually cites (live while streaming).
   const cited = citedNumbers(text).flatMap((n) => (byN.has(n) ? [byN.get(n)!] : []));
+  // Web pages it cites (from a web search), marked a, b, c… in the text.
+  const web = webCitations(text);
   // Until the answer starts, and while it searches the web, the thread's
   // status line says what is happening instead.
   const cursor = streaming && hasText(message) && !isSearchingWeb(message);
@@ -36,32 +38,13 @@ export function MessageView({ message, bookTitle, streaming, onCite }: Props) {
   return (
     <div className="grid gap-2">
       <div className="font-serif text-[0.95rem] leading-relaxed whitespace-pre-wrap">
-        <AnswerText text={text} byN={byN} onCite={onCite} />
+        <AnswerText pieces={web.pieces} byN={byN} onCite={onCite} />
         {cursor && <span className="ml-0.5 inline-block h-4 w-1.5 animate-pulse bg-foreground/40 align-middle" />}
       </div>
-      {!streaming && cited.length > 0 && <CitationChips citations={cited} bookTitle={bookTitle} onCite={onCite} />}
-    </div>
-  );
-}
-
-/**
- * Web addresses the answer cites (from a web search) as links that open in a
- * new tab, shown by their site's name so a long address doesn't break up the
- * prose.
- */
-function WebLinks({ text }: { text: string }) {
-  return (
-    <>
-      {splitLinks(text).map((piece, i) =>
-        typeof piece === "string" ? (
-          <Emphasis key={i} text={piece} />
-        ) : (
-          <a key={i} href={piece.href} target="_blank" rel="noopener noreferrer" title={piece.href} className="text-primary underline underline-offset-2">
-            {piece.label}
-          </a>
-        ),
+      {!streaming && cited.length + web.sources.length > 0 && (
+        <CitationChips citations={cited} webSources={web.sources} bookTitle={bookTitle} onCite={onCite} />
       )}
-    </>
+    </div>
   );
 }
 
@@ -76,24 +59,61 @@ function Emphasis({ text }: { text: string }) {
   );
 }
 
-/** Renders the answer with [n] markers as small links to the cited passage. */
+const MARK = "ml-0.5 font-sans text-[0.7rem]";
+
+/**
+ * Renders the answer with [n] markers as small links to the cited passage,
+ * and web citations as footnote letters linking to the page (the chips under
+ * the answer name each page).
+ */
 function AnswerText({
-  text,
+  pieces,
   byN,
   onCite,
 }: {
-  text: string;
+  pieces: CitedPiece[];
   byN: Map<number, Citation>;
   onCite: (spineHref: string) => void;
 }) {
+  // Consecutive web marks share one superscript: "ᵃ,ᵇ".
+  const runs: (string | { mark: string; href: string }[])[] = [];
+  for (const piece of pieces) {
+    const prev = runs.at(-1);
+    if (typeof piece === "string") runs.push(piece);
+    else if (Array.isArray(prev)) prev.push(piece);
+    else runs.push([piece]);
+  }
+  return (
+    <>
+      {runs.map((run, i) =>
+        typeof run === "string" ? (
+          <BookText key={i} text={run} byN={byN} onCite={onCite} />
+        ) : (
+          <sup key={i} className={MARK}>
+            {run.map((web, j) => (
+              <Fragment key={j}>
+                {j > 0 && ","}
+                <a href={web.href} target="_blank" rel="noopener noreferrer" title={web.href} className="text-primary italic underline-offset-2 hover:underline">
+                  {web.mark}
+                </a>
+              </Fragment>
+            ))}
+          </sup>
+        ),
+      )}
+    </>
+  );
+}
+
+function BookText({ text, byN, onCite }: { text: string; byN: Map<number, Citation>; onCite: (spineHref: string) => void }) {
   const pieces = text.split(/(\[\d+(?:\s*,\s*\d+)*\])/g);
   return (
     <>
       {pieces.map((piece, i) => {
         const marker = piece.match(/^\[(\d+(?:\s*,\s*\d+)*)\]$/);
-        if (!marker) return <WebLinks key={i} text={piece} />;
+        if (!marker) return <Emphasis key={i} text={piece} />;
         return (
-          <sup key={i} className="ml-0.5 font-sans text-[0.7rem]">
+          <sup key={i} className={MARK}>
             {marker[1].split(",").map((raw, j) => {
               const n = Number(raw.trim());
               const source = byN.get(n);
