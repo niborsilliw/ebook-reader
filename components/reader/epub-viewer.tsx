@@ -260,7 +260,7 @@ export function EpubViewer({
       return { percentage };
     };
 
-    // --- page turns: buttons, keys and swipes ------------------------------
+    // --- page turns: margins, keys and swipes ------------------------------
     // Every turn goes through turnPage, and the new page slides in from the
     // side it comes from. The slide must start in the same task that puts the
     // new page on screen, or the page is painted at rest first and then jumps
@@ -817,7 +817,7 @@ export function EpubViewer({
           white space. From SPREAD_QUERY up it holds a two-page spread of about
           46–58 characters a page, growing on bigger screens (about 60, then
           65) so the book fills more of the screen without overlong lines. */}
-      <div className="relative mx-auto h-full w-full max-w-[38rem] min-w-0 py-8 sm:px-12 sm:py-12 min-[1000px]:max-w-[68rem] min-[1400px]:max-w-[72rem] min-[1700px]:max-w-[76rem]">
+      <div className="relative h-full w-full max-w-[38rem] min-w-0 py-8 sm:px-12 sm:py-12 min-[1000px]:max-w-[68rem] min-[1400px]:max-w-[72rem] min-[1700px]:max-w-[76rem]">
         <div ref={containerRef} className="h-full w-full overflow-hidden" />
         {status === "ready" && pageMarker}
         {status === "loading" && <Overlay>Opening book…</Overlay>}
@@ -828,6 +828,9 @@ export function EpubViewer({
   );
 }
 
+// The margins either side of the text turn the page when clicked or tapped.
+// They show nothing, so the page stays calm; they grow to fill all the white
+// space beside the text, so a click anywhere in it turns the page.
 function PageButton({ side, disabled, onClick }: { side: "prev" | "next"; disabled: boolean; onClick: () => void }) {
   return (
     <button
@@ -835,14 +838,8 @@ function PageButton({ side, disabled, onClick }: { side: "prev" | "next"; disabl
       aria-label={side === "prev" ? "Previous page" : "Next page"}
       disabled={disabled}
       onClick={onClick}
-      className="group flex w-7 shrink-0 items-center justify-center text-[#8c8478] transition-colors hover:text-[#1f1d1a] disabled:pointer-events-none disabled:opacity-0 sm:w-20"
-    >
-      {/* An SVG rather than a ‹ › glyph: the glyph rendered at ~8px and was
-          too faint to find on tablets. */}
-      <svg aria-hidden viewBox="0 0 24 24" className="size-5 sm:size-7" fill="none" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round">
-        <path d={side === "prev" ? "M15 5l-7 7 7 7" : "M9 5l7 7-7 7"} />
-      </svg>
-    </button>
+      className="min-w-7 flex-1 focus-visible:outline-2 focus-visible:-outline-offset-4 focus-visible:outline-[#8c8478] disabled:pointer-events-none sm:min-w-20"
+    />
   );
 }
 
