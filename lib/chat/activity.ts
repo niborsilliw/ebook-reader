@@ -8,16 +8,24 @@ import type { ChatUIMessage } from "./types";
 export function isSearchingWeb(message: ChatUIMessage | undefined) {
   if (message?.role !== "assistant") return false;
   const lastSearch = message.parts.findLastIndex((p) => p.type === "tool-web_search");
-  return lastSearch >= 0 && !message.parts.slice(lastSearch + 1).some((p) => p.type === "text" && p.text);
+  return lastSearch >= 0 && !hasText({ ...message, parts: message.parts.slice(lastSearch + 1) });
 }
 
 /**
- * The thread's status line while an answer is on its way: the passages are
- * found before the reply starts, and a web search, if the reader asked for
- * one, happens during it.
+ * The thread's status line while an answer is on its way. The passages are
+ * found before the reply starts; the book line stays up after that while the
+ * model decides whether it needs a web search, until the search or the
+ * answer itself begins.
  */
 export function activityLabel(status: ChatStatus, last: ChatUIMessage | undefined) {
   if (status === "submitted") return "Searching the book…";
-  if (status === "streaming" && isSearchingWeb(last)) return "Searching the web…";
+  if (status !== "streaming") return null;
+  if (isSearchingWeb(last)) return "Searching the web…";
+  if (last?.role === "assistant" && !hasText(last)) return "Searching the book…";
   return null;
+}
+
+/** Whether any of the answer has arrived yet. */
+export function hasText(message: ChatUIMessage) {
+  return message.parts.some((p) => p.type === "text" && p.text);
 }

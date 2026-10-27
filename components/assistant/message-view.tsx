@@ -4,7 +4,7 @@ import { Fragment } from "react";
 import type { ChatUIMessage } from "@/lib/chat/types";
 import type { Citation } from "@/lib/rag/types";
 import { citedNumbers } from "@/lib/rag/prompt";
-import { isSearchingWeb } from "@/lib/chat/activity";
+import { hasText, isSearchingWeb } from "@/lib/chat/activity";
 import { splitEmphasis } from "@/lib/chat/emphasis";
 import { splitLinks } from "@/lib/chat/links";
 import { CitationChips } from "./citation-chips";
@@ -29,14 +29,15 @@ export function MessageView({ message, bookTitle, streaming, onCite }: Props) {
   const byN = new Map(sources.map((s) => [s.n, s]));
   // Only sources the answer actually cites (live while streaming).
   const cited = citedNumbers(text).flatMap((n) => (byN.has(n) ? [byN.get(n)!] : []));
-  // While it searches the web, the thread's status line says so instead.
-  const searching = streaming && isSearchingWeb(message);
+  // Until the answer starts, and while it searches the web, the thread's
+  // status line says what is happening instead.
+  const cursor = streaming && hasText(message) && !isSearchingWeb(message);
 
   return (
     <div className="grid gap-2">
       <div className="font-serif text-[0.95rem] leading-relaxed whitespace-pre-wrap">
         <AnswerText text={text} byN={byN} onCite={onCite} />
-        {streaming && !searching && <span className="ml-0.5 inline-block h-4 w-1.5 animate-pulse bg-foreground/40 align-middle" />}
+        {cursor && <span className="ml-0.5 inline-block h-4 w-1.5 animate-pulse bg-foreground/40 align-middle" />}
       </div>
       {!streaming && cited.length > 0 && <CitationChips citations={cited} bookTitle={bookTitle} onCite={onCite} />}
     </div>

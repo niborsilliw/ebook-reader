@@ -19,6 +19,12 @@ describe("the thread's status line", () => {
     expect(activityLabel("streaming", assistant(search("output-available"), { type: "step-start" }, text("Hannah")))).toBeNull();
   });
 
+  it("keeps saying it is searching the book after the reply starts, until a search or the answer begins", () => {
+    expect(activityLabel("streaming", assistant({ type: "data-citations", data: [] }))).toBe("Searching the book…");
+    expect(activityLabel("streaming", assistant({ type: "data-citations", data: [] }, { type: "step-start" }, text("")))).toBe("Searching the book…");
+    expect(activityLabel("streaming", assistant({ type: "data-citations", data: [] }, { type: "step-start" }, search("input-streaming")))).toBe("Searching the web…");
+  });
+
   it("says nothing while an answer streams without a search, or once it is done", () => {
     expect(activityLabel("streaming", assistant(text("Meursault")))).toBeNull();
     expect(activityLabel("ready", assistant(search("output-available")))).toBeNull();
