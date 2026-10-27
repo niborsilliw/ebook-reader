@@ -26,13 +26,18 @@ export function MessageView({ message, bookTitle, streaming, onCite }: Props) {
   const byN = new Map(sources.map((s) => [s.n, s]));
   // Only sources the answer actually cites (live while streaming).
   const cited = citedNumbers(text).flatMap((n) => (byN.has(n) ? [byN.get(n)!] : []));
+  // A web search is under way from when the model asks for one until the
+  // answer it feeds starts arriving.
+  const lastSearch = message.parts.findLastIndex((p) => p.type === "tool-web_search");
+  const searching = streaming && lastSearch >= 0 && !message.parts.slice(lastSearch + 1).some((p) => p.type === "text" && p.text);
 
   return (
     <div className="grid gap-2">
       <div className="font-serif text-[0.95rem] leading-relaxed whitespace-pre-wrap">
         <AnswerText text={text} byN={byN} onCite={onCite} />
-        {streaming && <span className="ml-0.5 inline-block h-4 w-1.5 animate-pulse bg-foreground/40 align-middle" />}
+        {streaming && !searching && <span className="ml-0.5 inline-block h-4 w-1.5 animate-pulse bg-foreground/40 align-middle" />}
       </div>
+      {searching && <p className="animate-pulse font-serif text-sm text-[#6b655c] italic">Looking that up…</p>}
       {!streaming && cited.length > 0 && <CitationChips citations={cited} bookTitle={bookTitle} onCite={onCite} />}
     </div>
   );
