@@ -10,7 +10,8 @@ import { BOOKS_BUCKET, locationsPath } from "@/lib/storage-paths";
 import { IMAGE_PAGE_STYLES, markImagePage } from "@/lib/reader/image-pages";
 import { BODY_FONT, installBodyFont } from "@/lib/reader/fonts";
 import { lockDownChapter } from "@/lib/reader/content-security";
-import { noteTouchEnd } from "@/lib/reader/last-touch";
+import { msSinceTouch, noteTouchEnd } from "@/lib/reader/last-touch";
+import { TAP_UNITS, rangeAtPoint, selectRange } from "@/lib/reader/tap-select";
 
 const SAVE_DEBOUNCE_MS = 2000;
 const LOCATION_CHARS = 1600; // granularity of epub.js progress locations
@@ -24,6 +25,14 @@ const TAP_MAX_MS = 500;
 // A swipe that starts this close to a screen edge and moves inwards summons
 // that side's drawer instead of turning the page.
 const EDGE_SWIPE_PX = 24;
+// Taps (and clicks) on the text select it: once the word, twice the
+// sentence, three times the paragraph. The selection's colour bar only
+// appears once no further tap can follow.
+const MULTI_TAP_MS = 350;
+const MULTI_CLICK_MS = 450;
+const MULTI_TAP_SLOP_PX = 24;
+// A mouse event this soon after a touch is the browser's emulation of it.
+const TOUCH_MOUSE_MS = 800;
 const RESIZE_SETTLE_MS = 150;
 // From tablet width up (Tailwind's sm, where the page margins widen) the text
 // is set smaller, like a printed paperback: Libre Baskerville's tall x-height
@@ -312,6 +321,120 @@ export function EpubViewer({
       if (forward || back) turnPage(forward ? "next" : "prev");
     };
 
+    // --- selections ------------------------------------------------------
+    // Reports the selection in `contents` to the page, which shows its colour bar.
+    const showSelection = (contents: Contents) => {
+      const selection = contents.window.getSelection();
+      const text = selection?.toString().trim() ?? "";
+      if (!selection || selection.rangeCount === 0 || !text) return onSelectionRef.current(null);
+      const range = selection.getRangeAt(0);
+      const cfiRange = contents.cfiFromRange(range);
+      // Range rects are relative to the iframe; shift them into the page.
+      const r = range.getBoundingClientRect();
+      const frame = (contents.window.frameElement as HTMLElement | null)?.getBoundingClientRect();
+      const dx = frame?.left ?? 0;
+      const dy = frame?.top ?? 0;
+      const index = (renditionRef.current?.currentLocation() as unknown as Location | undefined)?.start?.index ?? 0;
+      onSelectionRef.current({
+        cfiRange,
+        text,
+        chapter: chapterFor(book?.spine.get(cfiRange)?.index ?? index),
+        rect: { left: r.left + dx, right: r.right + dx, top: r.top + dy, bottom: r.bottom + dy },
+        clear: () => contents.window.getSelection()?.removeAllRanges(),
+      });
+    };
+    // While a selection is still being made (the mouse button is down, or
+    // another tap may follow), epub.js's own "selected" events are ignored,
+    // so the colour bar only appears for the finished selection.
+    let unsettled = false;
+    let settleTimer: ReturnType<typeof setTimeout> | undefined;
+    const settle = (contents: Contents, after: number) => {
+      clearTimeout(settleTimer);
+      settleTimer = setTimeout(() => {
+        unsettled = false;
+        taps = null;
+        showSelection(contents);
+      }, after);
+    };
+    const unsettle = () => {
+      clearTimeout(settleTimer);
+      unsettled = true;
+    };
+    const release = () => {
+      clearTimeout(settleTimer);
+      unsettled = false;
+      taps = null;
+    };
+    // Selects the word (count 1), sentence (2) or paragraph (3) at a point in
+    // the chapter; false if the point isn't on text.
+    const selectAt = (contents: Contents, x: number, y: number, count: number) => {
+      const range = rangeAtPoint(contents.document, x, y, TAP_UNITS[Math.min(count, 3) - 1], book?.packaging?.metadata?.language);
+      if (!range) return false;
+      unsettle();
+      selectRange(contents.document, range);
+      return true;
+    };
+    const tappedLink = (e: Event) => !!(e.target as Element | null)?.closest?.("a[href]");
+
+    // A run of taps on the same spot: each one widens the selection.
+    let taps: { doc: Document; x: number; y: number; at: number; count: number } | null = null;
+    // A tap in the chapter at (x, y); true if it selected (or dismissed) text.
+    const tapText = (contents: Contents, x: number, y: number) => {
+      const doc = contents.document;
+      const now = performance.now();
+      const run = taps;
+      if (run && run.doc === doc && now - run.at < MULTI_TAP_MS && Math.hypot(x - run.x, y - run.y) < MULTI_TAP_SLOP_PX && run.count < 3) {
+        run.count++;
+        run.at = now;
+        if (selectAt(contents, run.x, run.y, run.count)) settle(contents, run.count === 3 ? 0 : MULTI_TAP_MS);
+        return true;
+      }
+      // With a selection showing, a tap only puts it away.
+      if (doc.getSelection()?.isCollapsed === false) {
+        release();
+        doc.getSelection()?.removeAllRanges();
+        return true;
+      }
+      if (!selectAt(contents, x, y, 1)) return false;
+      taps = { doc, x, y, at: now, count: 1 };
+      settle(contents, MULTI_TAP_MS);
+      return true;
+    };
+
+    // Clicks select the same way. The browser counts the clicks (e.detail);
+    // its own double- and triple-click selections are replaced by these.
+    // Dragging selects as usual, and shows the colour bar on release.
+    const watchMouse = (contents: Contents) => {
+      const doc = contents.document;
+      let press: { x: number; y: number; hadSelection: boolean } | null = null;
+      doc.addEventListener("mousedown", (e) => {
+        press = null;
+        if (e.button !== 0 || msSinceTouch() < TOUCH_MOUSE_MS) return;
+        if (e.detail >= 2) e.preventDefault();
+        press = { x: e.clientX, y: e.clientY, hadSelection: e.detail === 1 && doc.getSelection()?.isCollapsed === false };
+        unsettle();
+      });
+      doc.addEventListener("mouseup", (e) => {
+        if (!press || Math.hypot(e.clientX - press.x, e.clientY - press.y) < TAP_SLOP_PX) return;
+        press = null; // the end of a drag
+        release();
+        showSelection(contents);
+      });
+      doc.addEventListener("click", (e) => {
+        const p = press;
+        press = null;
+        if (!p) return;
+        if (tappedLink(e) || (e.detail === 1 && p.hadSelection)) return release(); // following a link, or putting a selection away
+        const opened = lastOpenedRef.current;
+        // Let a click on a highlight open it first (epub.js handles the same click).
+        setTimeout(() => {
+          if (lastOpenedRef.current !== opened) return release();
+          if (selectAt(contents, e.clientX, e.clientY, e.detail)) settle(contents, e.detail >= 3 ? 0 : MULTI_CLICK_MS);
+          else release();
+        });
+      });
+    };
+
     // --- swipe to turn pages on touch screens ----------------------------
     // Touches on the page land in the epub.js iframe (forwarded by the
     // rendition); touches on the margins land on the root element.
@@ -320,7 +443,8 @@ export function EpubViewer({
       const t = e.touches[0];
       swipeStart = e.touches.length === 1 ? { x: t.clientX, y: t.clientY, t: e.timeStamp } : null;
     };
-    const onTouchEnd = (e: TouchEvent) => {
+    // Touches in the chapter come with its contents (see the content hook).
+    const onTouchEnd = (e: TouchEvent, contents?: Contents) => {
       noteTouchEnd();
       const start = swipeStart;
       swipeStart = null;
@@ -335,6 +459,9 @@ export function EpubViewer({
       // on the click epub.js would forward.
       const tapped = Math.abs(dx) < TAP_SLOP_PX && Math.abs(dy) < TAP_SLOP_PX && e.timeStamp - start.t < TAP_MAX_MS;
       if (tapped && onHighlight && performance.now() - onHighlight.at < TAP_MAX_MS) return openHighlightRef.current(onHighlight.id);
+      // A tap on the text selects it; cancelling the tap's default keeps the
+      // browser from undoing that, or zooming on a double tap.
+      if (tapped && contents && !tappedLink(e) && tapText(contents, t.clientX, t.clientY)) return e.preventDefault();
       const selecting = e.view?.getSelection()?.isCollapsed === false;
       if (tapped) return void (!selecting && onTapRef.current?.());
       if (Math.abs(dx) < SWIPE_MIN_PX || Math.abs(dx) < 1.5 * Math.abs(dy) || e.timeStamp - start.t > SWIPE_MAX_MS) return;
@@ -347,7 +474,8 @@ export function EpubViewer({
     };
     const root = rootRef.current;
     root?.addEventListener("touchstart", onTouchStart, { passive: true });
-    root?.addEventListener("touchend", onTouchEnd);
+    const onRootTouchEnd = (e: TouchEvent) => onTouchEnd(e);
+    root?.addEventListener("touchend", onRootTouchEnd);
 
     // epub.js measures the container once, when the rendition is attached; at
     // 0×0 it can only show the start of a section. Wait until it has a size.
@@ -388,6 +516,8 @@ export function EpubViewer({
         rendition.themes.default({
           // Keep book content inside the page column on narrow screens.
           "html, body": { "max-width": "100%", "box-sizing": "border-box" },
+          // No double-tap zoom: a double tap selects the sentence.
+          html: { "touch-action": "manipulation" },
           body: {
             "font-family": `${BODY_FONT} !important`,
             "font-size": "1.08rem",
@@ -411,39 +541,28 @@ export function EpubViewer({
           ...IMAGE_PAGE_STYLES,
         });
         // Covers and other single-picture pages: centred at 60% width instead of full-bleed.
-        rendition.hooks.content.register((contents: { document: Document }) => {
+        rendition.hooks.content.register((contents: Contents) => {
           markImagePage(contents.document);
           declareLanguage(contents.document, book?.packaging?.metadata?.language);
           // Hide the selection actions once the selection is gone (tap elsewhere).
           contents.document.addEventListener("selectionchange", () => {
             if (contents.document.getSelection()?.isCollapsed !== false) onSelectionRef.current(null);
           });
+          // Not passive (as epub.js's own forwarding is), so a tap can be cancelled.
+          contents.document.addEventListener("touchend", (e) => onTouchEnd(e, contents));
+          watchMouse(contents);
           // epub.js waits for this before laying out the chapter's pages.
           return installBodyFont(contents.document);
         });
 
-        rendition.on("selected", (cfiRange: string, contents: { window: Window; sectionIndex?: number }) => {
-          const selection = contents.window.getSelection();
-          const text = selection?.toString().trim() ?? "";
-          if (!selection || selection.rangeCount === 0 || !text) return onSelectionRef.current(null);
-          // Range rects are relative to the iframe; shift them into the page.
-          const r = selection.getRangeAt(0).getBoundingClientRect();
-          const frame = (contents.window.frameElement as HTMLElement | null)?.getBoundingClientRect();
-          const dx = frame?.left ?? 0;
-          const dy = frame?.top ?? 0;
-          const index = (rendition.currentLocation() as unknown as Location | undefined)?.start?.index ?? 0;
-          onSelectionRef.current({
-            cfiRange,
-            text,
-            chapter: chapterFor(book?.spine.get(cfiRange)?.index ?? index),
-            rect: { left: r.left + dx, right: r.right + dx, top: r.top + dy, bottom: r.bottom + dy },
-            clear: () => contents.window.getSelection()?.removeAllRanges(),
-          });
-        });
+        // Selections made any other way (a long press on a touch screen, then
+        // its handles), once they have stopped changing.
+        rendition.on("selected", (_cfiRange: string, contents: Contents) => !unsettled && showSelection(contents));
 
         rendition.on("relocated", (loc: Location) => {
           slide(); // a turn into another chapter (or nothing, if a scroll already slid)
           setEdges({ atStart: loc.atStart, atEnd: loc.atEnd });
+          release();
           onSelectionRef.current(null);
           const r = report(loc);
           if (!userMoveRef.current) return;
@@ -453,7 +572,6 @@ export function EpubViewer({
         });
         rendition.on("keyup", onKey); // key presses inside the book iframe
         rendition.on("touchstart", onTouchStart);
-        rendition.on("touchend", onTouchEnd);
 
         // Displays a CFI (point or range) and checks the page shown contains it.
         // The first display() of a section scrolls before the theme's styles
@@ -640,6 +758,7 @@ export function EpubViewer({
       cancelled = true;
       flush();
       clearTimeout(giveUp);
+      clearTimeout(settleTimer);
       clearInterval(pollTimer);
       observer.disconnect();
       clearTimeout(resizeTimer);
@@ -647,7 +766,7 @@ export function EpubViewer({
       window.removeEventListener("pagehide", flush);
       window.removeEventListener("keyup", onWindowKey);
       root?.removeEventListener("touchstart", onTouchStart);
-      root?.removeEventListener("touchend", onTouchEnd);
+      root?.removeEventListener("touchend", onRootTouchEnd);
       renditionRef.current = null;
       book?.destroy();
     };
