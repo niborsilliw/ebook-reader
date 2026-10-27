@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
+import { NibIcon, SpineIcon } from "./icons";
 
 // How long the pointer must rest against a screen edge to open its drawer, so
 // passing over the edge (say, on the way to the page-turn arrows) doesn't.
@@ -68,28 +69,11 @@ export function SummonControls({ hidden, revealToken, onOpen }: { hidden: boolea
                 tapShown ? "pointer-events-auto opacity-100" : "opacity-0",
               )}
             >
-              {side === "left" ? <MenuIcon /> : <NotesIcon />}
+              {side === "left" ? <SpineIcon /> : <NibIcon />}
             </button>
           </div>
         </div>
       ))}
     </>
-  );
-}
-
-function MenuIcon() {
-  return (
-    <svg aria-hidden viewBox="0 0 24 24" className="size-[18px]" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round">
-      <path d="M5 7h14M5 12h14M5 17h14" />
-    </svg>
-  );
-}
-
-function NotesIcon() {
-  return (
-    <svg aria-hidden viewBox="0 0 24 24" className="size-[18px]" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round">
-      <path d="M6 4h9l3 3v13H6z" />
-      <path d="M9 10h6M9 14h6" />
-    </svg>
   );
 }

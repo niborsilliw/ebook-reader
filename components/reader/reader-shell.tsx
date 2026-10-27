@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import type { TocEntry } from "@/lib/epub/parse";
 import { Button } from "@/components/ui/button";
 import { Drawer } from "./drawer";
+import { AsteriskIcon, CloseIcon, NibIcon } from "./icons";
 import { SummonControls } from "./summon-controls";
 import { TocList } from "./toc-list";
 import type { BookSelection, ReaderApi, ReaderLocation } from "./epub-viewer";
@@ -44,8 +45,8 @@ const BOOKMARK_LABEL_CHARS = 80;
 
 // The right drawer's tabs.
 const RIGHT_TABS = [
-  { id: "notes", label: "Notes" },
-  { id: "assistant", label: "Assistant" },
+  { id: "notes", label: "Notes", Icon: NibIcon },
+  { id: "assistant", label: "Assistant", Icon: AsteriskIcon },
 ] as const;
 type RightTab = (typeof RIGHT_TABS)[number]["id"];
 
@@ -281,7 +282,7 @@ export function ReaderShell({
               ← Library
             </Button>
             <Button variant="ghost" size="sm" onClick={closeDrawer} aria-label="Close contents">
-              ✕
+              <CloseIcon className="size-4" />
             </Button>
           </div>
           <p className="mt-3 px-2 font-serif text-base leading-snug italic">{title}</p>
@@ -302,7 +303,7 @@ export function ReaderShell({
 
       <Drawer id="notes-drawer" side="right" label="Notes and assistant" open={drawer === "right"} onClose={closeDrawer} className="max-w-[24rem]">
         <div role="tablist" aria-label="Notes and assistant" className="flex h-12 shrink-0 items-center gap-1 border-b border-[#e7e2d8] px-3">
-          {RIGHT_TABS.map(({ id, label }) => (
+          {RIGHT_TABS.map(({ id, label, Icon }) => (
             <button
               key={id}
               type="button"
@@ -312,16 +313,17 @@ export function ReaderShell({
               aria-controls={`tabpanel-${id}`}
               onClick={() => setRightTab(id)}
               className={
-                "rounded-md px-2.5 py-1.5 font-serif text-[0.95rem] " +
+                "flex items-center gap-1.5 rounded-md px-2.5 py-1.5 font-serif text-[0.95rem] " +
                 (rightTab === id ? "bg-black/[0.06] text-[#1f1d1a] italic" : "text-[#6b655c] hover:bg-black/5")
               }
             >
+              <Icon className="size-[15px] opacity-70" />
               {label}
             </button>
           ))}
           <span className="flex-1" />
           <Button variant="ghost" size="sm" onClick={closeDrawer} aria-label="Close notes and assistant">
-            ✕
+            <CloseIcon className="size-4" />
           </Button>
         </div>
         {/* Both stay mounted so a conversation or note draft survives a tab switch. */}
