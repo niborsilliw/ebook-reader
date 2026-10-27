@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { formatWebResults, searchWeb } from "@/lib/rag/web-search";
+import { formatWebResults, searchWeb, wantsSearch } from "@/lib/rag/web-search";
 import { buildPrompt, systemPrompt } from "@/lib/rag/prompt";
 
 describe("searchWeb (mocked Exa)", () => {
@@ -48,8 +48,11 @@ describe("web search in the prompt", () => {
   it("tells the companion when to search and how to cite, only when it has the tool", () => {
     const s = systemPrompt("Ethics", "companion", { webSearch: true });
     expect(s).toMatch(/web_search/);
-    expect(s).toMatch(/only when the reader explicitly asks/);
-    expect(s).toMatch(/Never use it for an ordinary question about the book/);
+    expect(s).toMatch(/You must use it, and not answer from memory/);
+    expect(s).toMatch(/even when you think you know the answer/);
+    expect(s).toMatch(/never offer to search/);
+    expect(s).toMatch(/search at once/);
+    expect(s).toMatch(/Do not search for questions about this book itself/);
     expect(s).toMatch(/full address in parentheses/);
     expect(systemPrompt("Ethics", "companion")).not.toMatch(/web_search/);
     expect(buildPrompt({ bookTitle: "Ethics", sources: [], history: [], question: "q", webSearch: true }).system).toMatch(/web_search/);
@@ -57,5 +60,24 @@ describe("web search in the prompt", () => {
 
   it("never offers it to the grounded prompt", () => {
     expect(systemPrompt("Ethics", "grounded", { webSearch: true })).not.toMatch(/web_search/);
+  });
+});
+
+describe("wantsSearch", () => {
+  const offer = "I'm not certain where he lived then. I could search for it if you like.";
+
+  it("is true when the reader accepts an offered search", () => {
+    for (const reply of ["yes please do.", "Yes", "sure, go ahead", "ok", "please do"]) expect(wantsSearch(reply, offer)).toBe(true);
+  });
+
+  it("is true when the reader asks for a search outright", () => {
+    for (const reply of ["look it up", "Can you search the web?", "search for it"]) expect(wantsSearch(reply)).toBe(true);
+  });
+
+  it("is false for assent to anything else, and for ordinary questions", () => {
+    expect(wantsSearch("yes please do", "Shall I say more about the trial?")).toBe(false);
+    expect(wantsSearch("yes", undefined)).toBe(false);
+    expect(wantsSearch("Why does Meursault shoot the Arab?", offer)).toBe(false);
+    expect(wantsSearch("yes, but I think the trial matters more than the murder, because the court judges his indifference", offer)).toBe(false);
   });
 });

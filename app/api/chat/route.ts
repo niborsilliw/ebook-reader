@@ -7,7 +7,7 @@ import { embedTexts } from "@/lib/mistral";
 import { buildRetrievalQuery, retrieveSources, type MatchRow } from "@/lib/rag/retrieve";
 import { buildPrompt, citationsFor, conversationTitle, HISTORY_MESSAGES, promptMode } from "@/lib/rag/prompt";
 import { toCitation } from "@/lib/rag/types";
-import { webSearchOptions } from "@/lib/rag/web-search";
+import { wantsSearch, webSearchOptions } from "@/lib/rag/web-search";
 import type { ChatUIMessage } from "@/lib/chat/types";
 import { chatErrorMessage, upstreamStatus } from "@/lib/chat/errors";
 
@@ -107,6 +107,7 @@ export async function POST(request: Request) {
     .insert({ conversation_id: conversationId, role: "user", content: message });
   if (userMsgError) return NextResponse.json({ error: "Could not save your message" }, { status: 500 });
 
+  const lastReply = history.filter((m) => m.role === "assistant").at(-1)?.content;
   const prompt = buildPrompt({ bookTitle, sources, history, question: message, mode: PROMPT_MODE, webSearch: WEB_SEARCH });
   const convId = conversationId;
 
@@ -122,7 +123,7 @@ export async function POST(request: Request) {
         system: prompt.system,
         messages: prompt.messages,
         temperature: PROMPT_MODE === "grounded" ? 0.2 : 0.6,
-        ...(WEB_SEARCH && webSearchOptions()),
+        ...(WEB_SEARCH && webSearchOptions({ force: wantsSearch(message, lastReply) })),
       });
       writer.merge(result.toUIMessageStream<ChatUIMessage>());
 

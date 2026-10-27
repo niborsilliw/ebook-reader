@@ -61,7 +61,7 @@ function escapeAttr(s: string) {
 
 const webSearchTool = tool({
   description:
-    "Search the web. Only for context from outside the book that the reader explicitly asks for: what another writer said, who someone is, or a request to look something up.",
+    "Search the web. Required for any factual question about something outside this book: another writer or person, a historical event, a place, a date, or a request to look something up. Not for questions about the book itself.",
   inputSchema: z.object({ query: z.string().min(1).max(300).describe("What to search for, as a short search query") }),
   execute: async ({ query }) => {
     try {
@@ -76,16 +76,38 @@ const webSearchTool = tool({
   },
 });
 
+// A short reply asking for a search, or accepting one the companion offered.
+const SEARCH_REQUEST = /\b(look (it|that|this|them) up|search (for )?(it|that|this|the web|online)|google it|check online)\b/i;
+const ASSENT = /^\W*(yes|yeah|yep|yup|sure|ok(ay)?|please|go (ahead|for it)|do it|do that|please do)\b/i;
+const OFFERED_SEARCH = /\b(search|look (it|that|this|them) up|look up|check online)\b/i;
+const SHORT_REPLY_CHARS = 60;
+
+/**
+ * Whether the reader's message asks for a search outright ("look it up") or
+ * accepts one the companion just offered ("yes please do"). Then the search
+ * is made for certain, not left to the model.
+ */
+export function wantsSearch(message: string, previousReply?: string) {
+  const m = message.trim();
+  if (m.length > SHORT_REPLY_CHARS) return false;
+  return SEARCH_REQUEST.test(m) || (ASSENT.test(m) && OFFERED_SEARCH.test(previousReply ?? ""));
+}
+
 /**
  * streamText options that give the model web_search. The SDK runs the loop:
  * a web_search call is executed and its results go back to the model, which
- * then streams the answer. The last step has no tools, so it always ends in
- * an answer.
+ * then streams the answer. With `force` the first step must search. The last
+ * step has no tools, so it always ends in an answer.
  */
-export function webSearchOptions() {
+export function webSearchOptions({ force = false } = {}) {
   return {
     tools: { web_search: webSearchTool },
     stopWhen: stepCountIs(MAX_STEPS),
-    prepareStep: ({ stepNumber }: { stepNumber: number }) => (stepNumber === MAX_STEPS - 1 ? { activeTools: [] } : {}),
+    prepareStep: ({ stepNumber }: { stepNumber: number }) =>
+      stepNumber === MAX_STEPS - 1
+        ? { activeTools: [] }
+        : force && stepNumber === 0
+          ? { toolChoice: { type: "tool" as const, toolName: "web_search" as const } }
+          : {},
   };
 }
