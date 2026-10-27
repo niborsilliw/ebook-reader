@@ -6,6 +6,7 @@ import { DefaultChatTransport } from "ai";
 import type { ChatRequestBody, ChatUIMessage } from "@/lib/chat/types";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { activityLabel } from "@/lib/chat/activity";
 import { MessageView } from "./message-view";
 
 type Props = {
@@ -62,6 +63,7 @@ export function ChatThread(props: Props) {
   });
 
   const busy = status === "submitted" || status === "streaming";
+  const activity = activityLabel(status, messages.at(-1));
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ block: "end" });
@@ -97,7 +99,7 @@ export function ChatThread(props: Props) {
             ))}
           </ol>
         )}
-        {status === "submitted" && <p className="mt-4 text-sm text-muted-foreground">Searching the book…</p>}
+        {activity && <p className="mt-4 text-sm text-muted-foreground">{activity}</p>}
         {error && <p className="mt-4 text-sm text-destructive">{errorMessage(error)}</p>}
         <div ref={bottomRef} />
       </div>
