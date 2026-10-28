@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { formatWebResults, searchWeb, wantsSearch } from "@/lib/rag/web-search";
+import { formatWebResults, RESULTS_REMINDER, searchWeb, wantsSearch, webSearchOptions } from "@/lib/rag/web-search";
 import { buildPrompt, systemPrompt } from "@/lib/rag/prompt";
 
 describe("searchWeb (mocked Exa)", () => {
@@ -55,9 +55,22 @@ describe("web search in the prompt", () => {
     expect(s).toMatch(/Do not search for questions about this book itself/);
     expect(s).toMatch(/full address in parentheses/);
     expect(s).toMatch(/The search results are unclear, but one source suggests/);
-    expect(s).toMatch(/do not state it as settled fact/);
-    expect(s).toMatch(/check that it actually makes the claim/);
     expect(s).toMatch(/A claim that only one source supports is uncertain/);
+  });
+
+  it("holds web answers to the results alone: no invented quotes, dates or links, gaps admitted", () => {
+    const s = systemPrompt("Ethics", "companion", { webSearch: true });
+    expect(s).toMatch(/the search results are your only source for facts from outside this book/);
+    expect(s).toMatch(/Never invent a quotation/);
+    expect(s).toMatch(/word for word in the results/);
+    expect(s).toMatch(/Do not state a date, place, name, title or event from outside the book unless the results state it explicitly/);
+    expect(s).toMatch(/Do not fill gaps from your own knowledge/);
+    expect(s).toMatch(/none of them documents Y directly/);
+    expect(s).toMatch(/Being mentioned together is not a connection/);
+    expect(s).toMatch(/Never attribute to a page something it doesn't say/);
+    expect(s).toMatch(/present it as your own reading/);
+    expect(s).toMatch(/cut any the results don't state/);
+    expect(s).toMatch(/Your own reading of the book, and your opinions about it, stay yours/);
     expect(systemPrompt("Ethics", "companion")).not.toMatch(/web_search/);
     expect(buildPrompt({ bookTitle: "Ethics", sources: [], history: [], question: "q", webSearch: true }).system).toMatch(/web_search/);
   });
@@ -83,5 +96,22 @@ describe("wantsSearch", () => {
     expect(wantsSearch("yes", undefined)).toBe(false);
     expect(wantsSearch("Why does Meursault shoot the Arab?", offer)).toBe(false);
     expect(wantsSearch("yes, but I think the trial matters more than the murder, because the court judges his indifference", offer)).toBe(false);
+  });
+});
+
+describe("what the model is given from a search", () => {
+  const toModel = webSearchOptions().tools.web_search.toModelOutput!;
+  const call = { toolCallId: "t", input: { query: "q" } };
+
+  it("is the results followed by the rules for answering from them", async () => {
+    const out = await toModel({ ...call, output: { results: [{ title: "T", url: "https://a.example/", text: "Body." }] } } as never);
+    expect(out).toEqual({ type: "text", value: expect.stringContaining('<web_result url="https://a.example/"') });
+    expect((out as { value: string }).value.endsWith(RESULTS_REMINDER)).toBe(true);
+    expect(RESULTS_REMINDER).toMatch(/Quote only words that appear here verbatim/);
+  });
+
+  it("is just the failure note when the search failed", async () => {
+    const out = await toModel({ ...call, output: { error: "(The web search failed.)" } } as never);
+    expect(out).toEqual({ type: "text", value: "(The web search failed.)" });
   });
 });

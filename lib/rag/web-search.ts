@@ -60,6 +60,11 @@ function escapeAttr(s: string) {
   return s.replace(/"/g, "'");
 }
 
+// The system prompt's rules for web answers, repeated right after the
+// results: placed next to the text it is answering from, the model holds to
+// them far better than from the top of a long prompt.
+export const RESULTS_REMINDER = `(Answer from these results only. Every fact from outside the book, every name, date, place, decade, quotation and claim of influence, must be stated in them; cut anything they don't state, however sure you are. Quote only words that appear here verbatim. Cite a page only for what it says itself. Being discussed in the same source is not a connection. Where they don't answer the question, say what is missing. Any link you draw yourself is your own reading; say so.)`;
+
 type SearchOutput = { results: WebResult[] } | { error: string };
 
 /** The pages a step's web searches returned, for citations (no page text). */
@@ -93,7 +98,10 @@ const webSearchTool = tool({
       return { error: "(The web search failed. Answer from what you know, and say that you couldn't search.)" };
     }
   },
-  toModelOutput: ({ output }) => ({ type: "text", value: "error" in output ? output.error : formatWebResults(output.results) }),
+  toModelOutput: ({ output }) => ({
+    type: "text",
+    value: "error" in output ? output.error : `${formatWebResults(output.results)}\n\n${RESULTS_REMINDER}`,
+  }),
 });
 
 // A short reply asking for a search, or accepting one the companion offered.
