@@ -8,7 +8,7 @@ import type { Highlight } from "@/lib/notes/types";
 import type { ChatUIMessage } from "@/lib/chat/types";
 import { copyBib } from "@/lib/cite/copy";
 
-const toast = vi.hoisted(() => Object.assign(vi.fn(), { success: vi.fn() }));
+const toast = vi.hoisted(() => Object.assign(vi.fn(), { success: vi.fn(), error: vi.fn() }));
 vi.mock("sonner", () => ({ toast }));
 
 let root: Root;
@@ -22,6 +22,7 @@ beforeEach(() => {
   saved = null;
   toast.mockClear();
   toast.success.mockClear();
+  toast.error.mockClear();
   clipboard = { writeText: vi.fn(async () => {}) };
   Object.defineProperty(navigator, "clipboard", { configurable: true, get: () => clipboard });
   let blob: Blob;
@@ -126,5 +127,33 @@ describe("copyBib", () => {
     clipboard = undefined;
     await copyBib(entry);
     expect(saved?.name).toBe("camus1989stranger.bib");
+  });
+});
+
+describe("Copy on an assistant reply", () => {
+  const text = "Arendt admired *The Rebel* [1] (https://plato.stanford.edu/entries/arendt/).";
+  const reply = { id: "a", role: "assistant", parts: [{ type: "text", text }] } as ChatUIMessage;
+  const copyButton = () => container.querySelector<HTMLButtonElement>('button[aria-label="Copy reply"]');
+
+  it("copies the reply as written and says so", async () => {
+    act(() => root.render(<MessageView message={reply} bookTitle="B" streaming={false} onCite={() => {}} />));
+    await act(async () => copyButton()!.click());
+    expect(clipboard!.writeText).toHaveBeenCalledWith(text);
+    expect(toast.success).toHaveBeenCalledWith("Copied to clipboard.");
+  });
+
+  it("isn't offered while the reply is still arriving, or on the reader's own messages", () => {
+    act(() => root.render(<MessageView message={reply} bookTitle="B" streaming onCite={() => {}} />));
+    expect(copyButton()).toBeNull();
+    act(() => root.render(<MessageView message={{ ...reply, role: "user" }} bookTitle="B" streaming={false} onCite={() => {}} />));
+    expect(copyButton()).toBeNull();
+  });
+
+  it("says so when the copy fails, without downloading anything", async () => {
+    clipboard!.writeText.mockRejectedValueOnce(new Error("NotAllowedError"));
+    act(() => root.render(<MessageView message={reply} bookTitle="B" streaming={false} onCite={() => {}} />));
+    await act(async () => copyButton()!.click());
+    expect(toast.error).toHaveBeenCalledWith("Couldn’t copy this reply.");
+    expect(saved).toBeNull();
   });
 });

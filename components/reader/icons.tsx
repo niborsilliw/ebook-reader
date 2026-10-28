@@ -59,3 +59,13 @@ export function CloseIcon(props: IconProps) {
     </Icon>
   );
 }
+
+/** Copy: two leaves of paper, one over the other. */
+export function CopyIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <rect x="8.5" y="8.5" width="11" height="12" rx="1" />
+      <path d="M15.5 8.5V4.5a1 1 0 0 0-1-1h-9a1 1 0 0 0-1 1v11a1 1 0 0 0 1 1h3" />
+    </Icon>
+  );
+}

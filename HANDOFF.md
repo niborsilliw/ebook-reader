@@ -93,6 +93,7 @@ Every step is idempotent: parsing deletes existing chunks before inserting. Mist
 On the client (`components/assistant`):
 - `[n]` markers render as superscript links that jump the reader to the passage, with "From: *Book*, Chapter" chips under the answer.
 - `*italics*` and `**bold**` are rendered without the marks.
+- A small copy mark under each finished reply copies its raw text ("Copied to clipboard."). With a mouse it appears only on hover; on touch screens it stays, faint.
 - One status line shows "Searching the book…", then "Searching the web…" if a search runs (`lib/chat/activity.ts`).
 
 ### Web search (Exa) tool loop

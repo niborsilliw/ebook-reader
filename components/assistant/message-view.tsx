@@ -8,6 +8,9 @@ import { hasText, isSearchingWeb } from "@/lib/chat/activity";
 import { splitEmphasis } from "@/lib/chat/emphasis";
 import { webCitations, type CitedPiece } from "@/lib/chat/links";
 import { CitationChips } from "./citation-chips";
+import { CopyIcon } from "@/components/reader/icons";
+import { copyText } from "@/lib/cite/copy";
+import { toast } from "sonner";
 
 type Props = {
   message: ChatUIMessage;
@@ -38,7 +41,7 @@ export function MessageView({ message, bookTitle, streaming, onCite }: Props) {
   const cursor = streaming && hasText(message) && !isSearchingWeb(message);
 
   return (
-    <div className="grid gap-2">
+    <div className="group grid gap-2">
       <div className="font-serif text-[0.95rem] leading-relaxed whitespace-pre-wrap">
         <AnswerText pieces={web.pieces} byN={byN} onCite={onCite} />
         {cursor && <span className="ml-0.5 inline-block h-4 w-1.5 animate-pulse bg-foreground/40 align-middle" />}
@@ -46,7 +49,29 @@ export function MessageView({ message, bookTitle, streaming, onCite }: Props) {
       {!streaming && cited.length + web.sources.length > 0 && (
         <CitationChips citations={cited} webSources={web.sources} webPages={webPages} bookTitle={bookTitle} onCite={onCite} />
       )}
+      {!streaming && text && <CopyReply text={text} />}
     </div>
+  );
+}
+
+/**
+ * Copies the reply as written (Markdown marks and web addresses included).
+ * With a mouse it shows only while the pointer is over the reply; on a
+ * touch screen, where there is no hover, it stays, small and faint.
+ */
+function CopyReply({ text }: { text: string }) {
+  return (
+    <button
+      type="button"
+      onClick={async () => {
+        if (!(await copyText(text))) toast.error("Couldn’t copy this reply.");
+      }}
+      aria-label="Copy reply"
+      title="Copy reply"
+      className="-my-1 -ml-1 grid size-6 place-items-center justify-self-start rounded text-[#8c8478] opacity-60 transition-opacity hover:bg-black/5 hover:text-[#1f1d1a] focus-visible:opacity-100 pointer-fine:opacity-0 pointer-fine:group-hover:opacity-100 pointer-fine:focus-visible:opacity-100"
+    >
+      <CopyIcon className="size-3.5" />
+    </button>
   );
 }
 
