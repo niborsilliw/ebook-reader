@@ -6,15 +6,24 @@ import { NotesPanel } from "@/components/notes/notes-panel";
 import { MessageView } from "@/components/assistant/message-view";
 import type { Highlight } from "@/lib/notes/types";
 import type { ChatUIMessage } from "@/lib/chat/types";
+import { copyBib } from "@/lib/cite/copy";
+
+const toast = vi.hoisted(() => Object.assign(vi.fn(), { success: vi.fn() }));
+vi.mock("sonner", () => ({ toast }));
 
 let root: Root;
 let container: HTMLDivElement;
 // What the last download saved: file name and contents.
 let saved: { name: string; text: Promise<string> } | null;
+let clipboard: { writeText: ReturnType<typeof vi.fn> } | undefined;
 
 beforeEach(() => {
   (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
   saved = null;
+  toast.mockClear();
+  toast.success.mockClear();
+  clipboard = { writeText: vi.fn(async () => {}) };
+  Object.defineProperty(navigator, "clipboard", { configurable: true, get: () => clipboard });
   let blob: Blob;
   URL.createObjectURL = (b: Blob) => ((blob = b), "blob:test");
   URL.revokeObjectURL = () => {};
@@ -82,7 +91,7 @@ describe("the notes drawer's academic row", () => {
 });
 
 describe("Cite on a web source", () => {
-  it("downloads the page as BibTeX, with what the search said about it", async () => {
+  it("copies the page as BibTeX, with what the search said about it", async () => {
     const message = {
       id: "a",
       role: "assistant",
@@ -92,10 +101,30 @@ describe("Cite on a web source", () => {
       ],
     } as ChatUIMessage;
     act(() => root.render(<MessageView message={message} bookTitle="B" streaming={false} onCite={() => {}} />));
-    act(() => button("Cite").click());
-    expect(saved?.name).toBe("dentreves2019hannah.bib");
-    const bib = await saved!.text;
+    await act(async () => button("Cite").click());
+    const bib = clipboard!.writeText.mock.calls[0][0] as string;
     expect(bib).toMatch(/^@misc\{dentreves2019hannah,/);
     expect(bib).toContain("author = {Maurizio Passerin d'Entreves}");
+    expect(toast.success).toHaveBeenCalledWith("BibTeX copied to clipboard");
+    expect(saved).toBeNull();
+  });
+});
+
+describe("copyBib", () => {
+  const entry = { key: "camus1989stranger", bibtex: "@book{camus1989stranger,\n}\n" };
+
+  it("downloads the .bib instead when the clipboard refuses", async () => {
+    clipboard!.writeText.mockRejectedValueOnce(new Error("NotAllowedError"));
+    await copyBib(entry);
+    expect(saved?.name).toBe("camus1989stranger.bib");
+    expect(await saved!.text).toBe(entry.bibtex);
+    expect(toast).toHaveBeenCalledWith("Couldn’t copy, so it was downloaded as camus1989stranger.bib");
+    expect(toast.success).not.toHaveBeenCalled();
+  });
+
+  it("downloads it when there is no clipboard at all", async () => {
+    clipboard = undefined;
+    await copyBib(entry);
+    expect(saved?.name).toBe("camus1989stranger.bib");
   });
 });

@@ -1,7 +1,8 @@
 "use client";
 
 import type { WebSource } from "@/lib/chat/links";
-import { downloadBib, webBibtex, type WebPage } from "@/lib/cite/bibtex";
+import { webBibtex, type WebPage } from "@/lib/cite/bibtex";
+import { copyBib } from "@/lib/cite/copy";
 import type { Citation } from "@/lib/rag/types";
 
 const CHIP = "rounded-full border bg-background px-2.5 py-1 text-left text-xs text-muted-foreground hover:bg-muted hover:text-foreground";
@@ -10,7 +11,7 @@ const CHIP = "rounded-full border bg-background px-2.5 py-1 text-left text-xs te
  * "From: <book>, <chapter>" chips under an answer. Citations from the same
  * chapter share one chip. Clicking jumps the reader to that chapter. Then a
  * "From the web: <site>" chip for each web page the answer cites, which
- * opens the page in a new tab, with a "Cite" that downloads it as BibTeX.
+ * opens the page in a new tab, with a "Cite" that copies it as BibTeX.
  */
 export function CitationChips({
   citations,
@@ -55,9 +56,9 @@ export function CitationChips({
           </a>
           <button
             type="button"
-            onClick={() => downloadBib(webBibtex(pageFor(s.href, webPages), new Date()))}
+            onClick={() => void copyBib(webBibtex(pageFor(s.href, webPages), new Date()))}
             aria-label={`Cite ${s.host} (BibTeX)`}
-            title="Download a BibTeX citation for this page"
+            title="Copy a BibTeX citation for this page"
             className="rounded px-1 text-xs text-muted-foreground italic underline-offset-2 hover:text-foreground hover:underline"
           >
             Cite

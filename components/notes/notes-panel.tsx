@@ -15,7 +15,7 @@ type Props = {
   onActivate: (item: { id: string; cfi: string }) => void;
   onSaveNote: (id: string, note: string | null) => Promise<boolean>;
   onSetVerified: (id: string, verified: boolean) => void;
-  /** Downloads a BibTeX entry for the book at this highlight. */
+  /** Copies a BibTeX entry for the book at this highlight. */
   onCite: (h: Highlight) => void;
   onDeleteHighlight: (h: Highlight) => void;
   onDeleteBookmark: (b: Bookmark) => void;
@@ -243,7 +243,7 @@ function AcademicRow({
       <button
         type="button"
         onClick={() => onCite(highlight)}
-        title="Download a BibTeX citation for the book at this passage"
+        title="Copy a BibTeX citation for the book at this passage"
         className="rounded px-1.5 py-0.5 italic underline-offset-2 hover:text-[#1f1d1a] hover:underline"
       >
         Cite this

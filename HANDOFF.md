@@ -183,8 +183,9 @@ Live behaviour is best checked with real Mistral and Exa calls through `buildPro
 
 All of it lives in the drawers; nothing was added to the page.
 
-- **Cite this** (notes drawer, on an open highlight) downloads the book as BibTeX: `@inbook` with the highlight's chapter, the quoted passage and the note in `annote` (`lib/cite/bibtex.ts`). Publisher, date and ISBN come from `books`, written at ingest. Books indexed before 0004 fall back to the EPUB's own metadata as epub.js reads it, until they are reindexed. The chapter is cited, not a page: the reader's page numbers are its own, not the print edition's.
-- **Cite** beside each "From the web" chip downloads the page as `@misc` with its title, author and date from the search (`messages.web_sources`), or just the address if the model cited a page the search didn't return.
+- **Cite this** (notes drawer, on an open highlight) copies the book as BibTeX to the clipboard: `@inbook` with the highlight's chapter, the quoted passage and the note in `annote` (`lib/cite/bibtex.ts`). Publisher, date and ISBN come from `books`, written at ingest. Books indexed before 0004 fall back to the EPUB's own metadata as epub.js reads it, until they are reindexed. The chapter is cited, not a page: the reader's page numbers are its own, not the print edition's.
+- **Cite** beside each "From the web" chip copies the page as `@misc` with its title, author and date from the search (`messages.web_sources`), or just the address if the model cited a page the search didn't return.
+- Both copy with a "BibTeX copied to clipboard" toast (`lib/cite/copy.ts`). Where the clipboard is unavailable or refused, the entry is downloaded as a `.bib` file instead.
 - **Verified** (notes drawer) marks a highlight as checked against the text (`highlights.verified`).
 - **Tutor, not textbook**: see the companion prompt. In testing, interpretation questions reliably end with one specific question; a plain plot question occasionally does too.
 

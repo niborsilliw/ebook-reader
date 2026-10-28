@@ -19,7 +19,8 @@ import { createClient } from "@/lib/supabase/browser";
 import { BOOKMARK_COLUMNS, HIGHLIGHT_COLUMNS, type Bookmark, type Highlight } from "@/lib/notes/types";
 import type { HighlightColor } from "@/lib/notes/colors";
 import { compareCfi } from "@/lib/notes/order";
-import { bookBibtex, downloadBib } from "@/lib/cite/bibtex";
+import { bookBibtex } from "@/lib/cite/bibtex";
+import { copyBib } from "@/lib/cite/copy";
 
 // epub.js touches `window` at import time.
 const EpubViewer = dynamic(() => import("./epub-viewer").then((m) => m.EpubViewer), {
@@ -185,9 +186,9 @@ export function ReaderShell({
     }
   }
 
-  // The book as a .bib entry, with the highlighted passage's chapter. Books
-  // indexed before publication metadata was stored fall back to the EPUB's
-  // own, read by epub.js.
+  // Copies the book as a BibTeX entry, with the highlighted passage's
+  // chapter. Books indexed before publication metadata was stored fall back
+  // to the EPUB's own, read by epub.js.
   function citeHighlight(h: Highlight) {
     const fromEpub = api.current?.publication();
     const entry = bookBibtex(
@@ -200,7 +201,7 @@ export function ReaderShell({
       },
       { chapter: h.chapter_title, text: h.text, note: h.note },
     );
-    downloadBib(entry);
+    void copyBib(entry);
   }
 
   // Deletes go through at once (the highlight disappears from the page too),
