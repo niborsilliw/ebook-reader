@@ -10,7 +10,7 @@ import { Drawer } from "./drawer";
 import { AsteriskIcon, CloseIcon, NibIcon } from "./icons";
 import { SummonControls } from "./summon-controls";
 import { TocList } from "./toc-list";
-import type { BookSelection, ReaderApi, ReaderLocation } from "./epub-viewer";
+import type { BookSelection, Publication, ReaderApi, ReaderLocation } from "./epub-viewer";
 import { SelectionBar } from "./selection-bar";
 import { BookmarkRibbon } from "./bookmark-ribbon";
 import { AssistantPanel } from "@/components/assistant/assistant-panel";
@@ -19,6 +19,7 @@ import { createClient } from "@/lib/supabase/browser";
 import { BOOKMARK_COLUMNS, HIGHLIGHT_COLUMNS, type Bookmark, type Highlight } from "@/lib/notes/types";
 import type { HighlightColor } from "@/lib/notes/colors";
 import { compareCfi } from "@/lib/notes/order";
+import { bookBibtex, downloadBib } from "@/lib/cite/bibtex";
 
 // epub.js touches `window` at import time.
 const EpubViewer = dynamic(() => import("./epub-viewer").then((m) => m.EpubViewer), {
@@ -31,6 +32,8 @@ type Props = {
   userId: string;
   title: string;
   author: string | null;
+  /** Stored at ingest, for citations; null for books indexed before that. */
+  publication: Publication;
   fileUrl: string;
   initialCfi: string | null;
   /** updated_at of the saved position, to tell when another device has moved on. */
@@ -55,6 +58,7 @@ export function ReaderShell({
   userId,
   title,
   author,
+  publication,
   fileUrl,
   initialCfi,
   initialPositionAt,
@@ -171,6 +175,34 @@ export function ReaderShell({
     return true;
   }
 
+  async function setVerified(id: string, verified: boolean) {
+    setHighlights((list) => list.map((h) => (h.id === id ? { ...h, verified } : h)));
+    const { error } = await createClient().from("highlights").update({ verified }).eq("id", id);
+    if (error) {
+      console.error("save verified failed", error.message);
+      setHighlights((list) => list.map((h) => (h.id === id ? { ...h, verified: !verified } : h)));
+      toast.error(`Couldn’t save that: ${error.message}`);
+    }
+  }
+
+  // The book as a .bib entry, with the highlighted passage's chapter. Books
+  // indexed before publication metadata was stored fall back to the EPUB's
+  // own, read by epub.js.
+  function citeHighlight(h: Highlight) {
+    const fromEpub = api.current?.publication();
+    const entry = bookBibtex(
+      {
+        title,
+        author,
+        publisher: publication.publisher ?? fromEpub?.publisher ?? null,
+        published: publication.published ?? fromEpub?.published ?? null,
+        isbn: publication.isbn ?? fromEpub?.isbn ?? null,
+      },
+      { chapter: h.chapter_title, text: h.text, note: h.note },
+    );
+    downloadBib(entry);
+  }
+
   // Deletes go through at once (the highlight disappears from the page too),
   // with an Undo that puts the same row back.
   async function deleteHighlight(h: Highlight) {
@@ -196,6 +228,7 @@ export function ReaderShell({
               note: h.note,
               color: h.color,
               chapter_title: h.chapter_title,
+              verified: h.verified,
               created_at: h.created_at,
             })
             .select(HIGHLIGHT_COLUMNS)
@@ -335,6 +368,8 @@ export function ReaderShell({
             focusNote={focusNote}
             onActivate={activate}
             onSaveNote={saveNote}
+            onSetVerified={(id, verified) => void setVerified(id, verified)}
+            onCite={citeHighlight}
             onDeleteHighlight={(h) => void deleteHighlight(h)}
             onDeleteBookmark={(b) => void deleteBookmark(b)}
           />

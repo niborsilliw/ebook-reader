@@ -22,7 +22,7 @@ export default async function ReadPage({ params }: { params: Promise<{ bookId: s
   // RLS: only the owner gets a row back.
   const { data: book } = await supabase
     .from("books")
-    .select("id, user_id, title, author, file_path, toc, status")
+    .select("id, user_id, title, author, publisher, published, isbn, file_path, toc, status")
     .eq("id", bookId)
     .maybeSingle();
   if (!book) notFound();
@@ -46,6 +46,7 @@ export default async function ReadPage({ params }: { params: Promise<{ bookId: s
       userId={book.user_id}
       title={book.title ?? "Untitled"}
       author={book.author}
+      publication={{ publisher: book.publisher, published: book.published, isbn: book.isbn }}
       fileUrl={signed.signedUrl}
       initialCfi={position?.cfi ?? null}
       initialPositionAt={position?.updated_at ?? null}

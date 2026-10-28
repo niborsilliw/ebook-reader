@@ -127,7 +127,7 @@ EPUBs are untrusted and can carry scripts. epub.js renders each chapter in an if
 
 ## 3. The database
 
-Postgres on Supabase. The schema is in `supabase/migrations` (0001 init, 0002 notes, 0003 drops an abandoned `notebooks` table). Generated types are in `lib/database.types.ts`.
+Postgres on Supabase. The schema is in `supabase/migrations` (0001 init, 0002 notes, 0003 drops an abandoned `notebooks` table, 0004 academic mode). Generated types are in `lib/database.types.ts`.
 
 **RLS is enabled on every table and strictly enforced per user.**
 - Users can only see and change their own rows, and rows that point at a book must point at one of *their* books (checked in the insert policies).
@@ -137,12 +137,12 @@ Postgres on Supabase. The schema is in `supabase/migrations` (0001 init, 0002 no
 
 | Table | Holds | Who writes |
 |---|---|---|
-| `books` | Metadata, TOC, file and cover paths, ingest state (`status`, counts, lease, attempts, error) | The user inserts and deletes. **Users cannot update**: ingest state is server-owned |
+| `books` | Metadata (title, author, language; `publisher`, `published`, `isbn` for citations), TOC, file and cover paths, ingest state (`status`, counts, lease, attempts, error) | The user inserts and deletes. **Users cannot update**: ingest state is server-owned |
 | `chunks` | Text chunks with spine href, chapter title and a `vector(1024)` embedding | Service role only; users can read their own |
 | `reading_positions` | One CFI per user per book, with `updated_at` for sync | The user |
 | `conversations` | One per chat thread, per book | The user |
-| `messages` | User and assistant turns, with `citations` (jsonb) and `model` | The user (via the chat route). Immutable: no update policy |
-| `highlights` | Range CFI, text, colour (yellow/green/blue/pink), optional note, chapter | The user |
+| `messages` | User and assistant turns, with `citations` (jsonb), `web_sources` (jsonb: the pages its web searches returned, for BibTeX) and `model` | The user (via the chat route). Immutable: no update policy |
+| `highlights` | Range CFI, text, colour (yellow/green/blue/pink), optional note, chapter, `verified` | The user |
 | `bookmarks` | CFI and label; unique per user, book and CFI | The user |
 
 SQL functions:
@@ -161,7 +161,7 @@ The UI is held to a few rules. When in doubt, take something away.
 - **Drawers, not menus.** Contents and library on the left; notes and the assistant on the right. Drawers slide *over* the page so it never re-paginates. You summon them from an edge (mouse dwell, touch swipe in from the edge), from a corner button that only appears on hover or tap, or with the keyboard. A click on the page sends them away.
 - **No timers, no arrows.** No reading timers, streaks or "minutes left". No on-screen page arrows: pages turn with arrow keys, a click or tap in the margins (invisible zones that fill the white space), or a swipe on touch screens. Swipes are touch-only, so they never fight the Mac trackpad's back/forward gesture.
 - **Selection is direct.** Tap once for the word, twice for the sentence, three times for the paragraph. A small bar then offers the highlight colours, and tapping a highlight opens its note in the notes drawer.
-- **The assistant doesn't chatter.** It talks like a well-read friend, has opinions, cites only when it helps, and never ends a reply with a question.
+- **The assistant doesn't chatter.** It talks like a well-read friend, has opinions, cites only when it helps, and doesn't end replies with questions. The deliberate exception: asked what something *means*, it tutors, giving a partial insight and one specific guiding question rather than a complete reading.
 
 ## 5. Open items
 
@@ -178,6 +178,15 @@ We are still tuning these, and they pull against each other.
 | **Librarian: outside knowledge** | Searches the web for facts outside the book and cites pages | `companion` mode + `EXA_API_KEY`, `WEB_SEARCH_GUIDANCE` and `wantsSearch()` | Newest. Over-triggering on book questions and confident claims from a single weak source are the risks we've been tuning |
 
 Live behaviour is best checked with real Mistral and Exa calls through `buildPrompt` and `webSearchOptions`. The unit tests pin the prompt wording, not the model's judgement.
+
+### Academic mode
+
+All of it lives in the drawers; nothing was added to the page.
+
+- **Cite this** (notes drawer, on an open highlight) downloads the book as BibTeX: `@inbook` with the highlight's chapter, the quoted passage and the note in `annote` (`lib/cite/bibtex.ts`). Publisher, date and ISBN come from `books`, written at ingest. Books indexed before 0004 fall back to the EPUB's own metadata as epub.js reads it, until they are reindexed. The chapter is cited, not a page: the reader's page numbers are its own, not the print edition's.
+- **Cite** beside each "From the web" chip downloads the page as `@misc` with its title, author and date from the search (`messages.web_sources`), or just the address if the model cited a page the search didn't return.
+- **Verified** (notes drawer) marks a highlight as checked against the text (`highlights.verified`).
+- **Tutor, not textbook**: see the companion prompt. In testing, interpretation questions reliably end with one specific question; a plain plot question occasionally does too.
 
 ### Smaller known items
 

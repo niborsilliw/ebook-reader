@@ -14,6 +14,9 @@ type Props = {
   focusNote: number;
   onActivate: (item: { id: string; cfi: string }) => void;
   onSaveNote: (id: string, note: string | null) => Promise<boolean>;
+  onSetVerified: (id: string, verified: boolean) => void;
+  /** Downloads a BibTeX entry for the book at this highlight. */
+  onCite: (h: Highlight) => void;
   onDeleteHighlight: (h: Highlight) => void;
   onDeleteBookmark: (b: Bookmark) => void;
 };
@@ -26,6 +29,8 @@ export function NotesPanel({
   focusNote,
   onActivate,
   onSaveNote,
+  onSetVerified,
+  onCite,
   onDeleteHighlight,
   onDeleteBookmark,
 }: Props) {
@@ -76,9 +81,17 @@ export function NotesPanel({
                         deleteLabel="Delete highlight"
                         below={
                           active ? (
-                            <NoteField highlight={h} focusToken={focusNote} onSave={onSaveNote} />
+                            <>
+                              <NoteField highlight={h} focusToken={focusNote} onSave={onSaveNote} />
+                              <AcademicRow highlight={h} onSetVerified={onSetVerified} onCite={onCite} />
+                            </>
                           ) : (
-                            h.note && <span className="mt-1 block px-2 pl-[19px] text-xs text-[#6b655c]">{h.note}</span>
+                            (h.note || h.verified) && (
+                              <span className="mt-1 block px-2 pl-[19px] text-xs text-[#6b655c]">
+                                {h.note}
+                                {h.verified && <span className={h.note ? "ml-1.5 italic" : "italic"}>✓ Verified</span>}
+                              </span>
+                            )
                           )
                         }
                       >
@@ -201,6 +214,40 @@ function NoteField({
       <p aria-live="polite" className="h-4 px-2 text-[0.7rem] text-[#8c8478]">
         {status === "saving" ? "Saving…" : status === "saved" ? "Saved" : status === "error" ? "Couldn’t save" : ""}
       </p>
+    </div>
+  );
+}
+
+// Under an open highlight's note: mark the passage as checked against the
+// text, and cite the book at this passage. Quiet, like a margin note.
+function AcademicRow({
+  highlight,
+  onSetVerified,
+  onCite,
+}: {
+  highlight: Highlight;
+  onSetVerified: (id: string, verified: boolean) => void;
+  onCite: (h: Highlight) => void;
+}) {
+  return (
+    <div className="flex items-center justify-between px-2 pl-[27px] text-xs text-[#6b655c]">
+      <label className="flex cursor-pointer items-center gap-1.5 italic">
+        <input
+          type="checkbox"
+          checked={highlight.verified}
+          onChange={(e) => onSetVerified(highlight.id, e.target.checked)}
+          className="size-3.5 accent-[#6b655c]"
+        />
+        Verified
+      </label>
+      <button
+        type="button"
+        onClick={() => onCite(highlight)}
+        title="Download a BibTeX citation for the book at this passage"
+        className="rounded px-1.5 py-0.5 italic underline-offset-2 hover:text-[#1f1d1a] hover:underline"
+      >
+        Cite this
+      </button>
     </div>
   );
 }

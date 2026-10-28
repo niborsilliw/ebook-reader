@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import type { Json } from "@/lib/database.types";
 import { createUIMessageStream, createUIMessageStreamResponse, streamText } from "ai";
 import { mistral } from "@ai-sdk/mistral";
 import { z } from "zod";
@@ -7,7 +8,8 @@ import { embedTexts } from "@/lib/mistral";
 import { buildRetrievalQuery, retrieveSources, type MatchRow } from "@/lib/rag/retrieve";
 import { buildPrompt, citationsFor, conversationTitle, HISTORY_MESSAGES, promptMode } from "@/lib/rag/prompt";
 import { toCitation } from "@/lib/rag/types";
-import { wantsSearch, webSearchOptions } from "@/lib/rag/web-search";
+import { wantsSearch, webPagesOf, webSearchOptions } from "@/lib/rag/web-search";
+import type { WebPage } from "@/lib/cite/bibtex";
 import type { ChatUIMessage } from "@/lib/chat/types";
 import { chatErrorMessage, upstreamStatus } from "@/lib/chat/errors";
 
@@ -118,12 +120,21 @@ export async function POST(request: Request) {
       }
       writer.write({ type: "data-citations", data: sources.map(toCitation) });
 
+      const webPages: WebPage[] = [];
       const result = streamText({
         model: mistral(CHAT_MODEL),
         system: prompt.system,
         messages: prompt.messages,
         temperature: PROMPT_MODE === "grounded" ? 0.2 : 0.6,
         ...(WEB_SEARCH && webSearchOptions({ force: wantsSearch(message, lastReply) })),
+        // Each search's pages go to the reader as they arrive (to cite them)
+        // and are saved with the answer.
+        onStepFinish: (step) => {
+          const pages = webPagesOf(step.toolResults);
+          if (!pages.length) return;
+          webPages.push(...pages);
+          writer.write({ type: "data-web-sources", data: pages });
+        },
       });
       writer.merge(result.toUIMessageStream<ChatUIMessage>());
 
@@ -137,6 +148,7 @@ export async function POST(request: Request) {
           role: "assistant",
           content: text,
           citations: citationsFor(text, sources),
+          web_sources: webPages.length ? (webPages as unknown as Json) : null,
           model: CHAT_MODEL,
         }),
         supabase.from("conversations").update({ updated_at: new Date().toISOString() }).eq("id", convId),

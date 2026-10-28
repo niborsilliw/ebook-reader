@@ -10,6 +10,7 @@ import { BOOKS_BUCKET, locationsPath } from "@/lib/storage-paths";
 import { IMAGE_PAGE_STYLES, markImagePage } from "@/lib/reader/image-pages";
 import { BODY_FONT, installBodyFont } from "@/lib/reader/fonts";
 import { lockDownChapter } from "@/lib/reader/content-security";
+import { toIsbn } from "@/lib/cite/isbn";
 import { msSinceTouch, noteTouchEnd } from "@/lib/reader/last-touch";
 import { TAP_UNITS, rangeAtPoint, selectRange } from "@/lib/reader/tap-select";
 
@@ -71,7 +72,11 @@ export type ReaderApi = {
   goTo: (target: string) => void;
   /** Start of the page being read, its chapter, and the text on it. */
   currentLocation: () => { cfi: string; chapter: string | null; excerpt: string } | null;
+  /** The EPUB's own publication metadata, for citing books indexed before it was stored. */
+  publication: () => Publication;
 };
+
+export type Publication = { publisher: string | null; published: string | null; isbn: string | null };
 
 /** Where the reader is, reported on every page turn. */
 export type ReaderLocation = {
@@ -670,6 +675,10 @@ export function EpubViewer({
             const loc = rendition.currentLocation() as unknown as Location | undefined;
             if (!loc?.start) return null;
             return { cfi: loc.start.cfi, chapter: chapterFor(loc.start.index), excerpt: pageText(rendition, loc) };
+          },
+          publication: () => {
+            const meta = (book as unknown as { packaging?: { metadata?: Record<string, string | undefined> } }).packaging?.metadata;
+            return { publisher: meta?.publisher || null, published: meta?.pubdate || null, isbn: toIsbn(meta?.identifier) };
           },
         });
 

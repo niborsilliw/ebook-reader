@@ -16,6 +16,21 @@ describe("migrations, applied in order", () => {
     expect(rows[0].t).toBeNull();
   });
 
+  it("add academic mode's columns (0004)", async () => {
+    const { rows } = await pg.query<{ c: string }>(
+      `select table_name || '.' || column_name || ' ' || data_type as c from information_schema.columns
+       where table_schema = 'public' and column_name in ('publisher', 'published', 'isbn', 'verified', 'web_sources')
+       order by 1`,
+    );
+    expect(rows.map((r) => r.c)).toEqual([
+      "books.isbn text",
+      "books.published text",
+      "books.publisher text",
+      "highlights.verified boolean",
+      "messages.web_sources jsonb",
+    ]);
+  });
+
   it("keep the reader's tables", async () => {
     const { rows } = await pg.query<{ t: string }>(
       `select tablename as t from pg_tables where schemaname = 'public' order by tablename`,

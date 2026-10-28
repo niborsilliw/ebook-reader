@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/browser";
 import type { Citation } from "@/lib/rag/types";
+import type { WebPage } from "@/lib/cite/bibtex";
 import type { ChatUIMessage } from "@/lib/chat/types";
 import { Button } from "@/components/ui/button";
 import { ChatThread } from "./chat-thread";
@@ -55,7 +56,7 @@ export function AssistantPanel({ bookId, bookTitle, ready, getCurrentHref, onCit
     setLoadingThread(true);
     const { data, error } = await createClient()
       .from("messages")
-      .select("id, role, content, citations")
+      .select("id, role, content, citations, web_sources")
       .eq("conversation_id", id)
       .order("created_at");
     setLoadingThread(false);
@@ -76,6 +77,9 @@ export function AssistantPanel({ bookId, bookTitle, ready, getCurrentHref, onCit
           { type: "text" as const, text: m.content },
           ...(m.role === "assistant" && Array.isArray(m.citations)
             ? [{ type: "data-citations" as const, data: m.citations as unknown as Citation[] }]
+            : []),
+          ...(m.role === "assistant" && Array.isArray(m.web_sources)
+            ? [{ type: "data-web-sources" as const, data: m.web_sources as unknown as WebPage[] }]
             : []),
         ],
       })),

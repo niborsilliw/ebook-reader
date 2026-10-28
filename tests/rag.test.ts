@@ -225,6 +225,15 @@ describe("prompt building", () => {
     }
   });
 
+  it("makes the companion a tutor for questions of meaning: a partial insight, then one guiding question", () => {
+    const s = systemPrompt("Ethics", "companion");
+    expect(s).toMatch(/be a tutor, not a textbook/);
+    expect(s).toMatch(/Do not hand them a complete reading/);
+    expect(s).toMatch(/end with one guiding question/);
+    expect(s).toMatch(/two exceptions: the guiding question/);
+    expect(systemPrompt("Ethics", "grounded")).not.toMatch(/tutor/);
+  });
+
   it("defaults to the companion prompt: own knowledge and opinions, citations only when needed", () => {
     const s = systemPrompt("Ethics");
     expect(s).toBe(systemPrompt("Ethics", "companion"));

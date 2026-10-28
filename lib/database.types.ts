@@ -88,6 +88,9 @@ export type Database = {
           ingest_error: string | null
           ingest_heartbeat_at: string | null
           language: string | null
+          isbn: string | null
+          published: string | null
+          publisher: string | null
           status: Database["public"]["Enums"]["ingest_status"]
           title: string | null
           toc: Json | null
@@ -107,6 +110,9 @@ export type Database = {
           ingest_error?: string | null
           ingest_heartbeat_at?: string | null
           language?: string | null
+          isbn?: string | null
+          published?: string | null
+          publisher?: string | null
           status?: Database["public"]["Enums"]["ingest_status"]
           title?: string | null
           toc?: Json | null
@@ -126,6 +132,9 @@ export type Database = {
           ingest_error?: string | null
           ingest_heartbeat_at?: string | null
           language?: string | null
+          isbn?: string | null
+          published?: string | null
+          publisher?: string | null
           status?: Database["public"]["Enums"]["ingest_status"]
           title?: string | null
           toc?: Json | null
@@ -227,6 +236,7 @@ export type Database = {
           note: string | null
           text: string
           user_id: string
+          verified: boolean
         }
         Insert: {
           book_id: string
@@ -238,6 +248,7 @@ export type Database = {
           note?: string | null
           text: string
           user_id?: string
+          verified?: boolean
         }
         Update: {
           book_id?: string
@@ -249,6 +260,7 @@ export type Database = {
           note?: string | null
           text?: string
           user_id?: string
+          verified?: boolean
         }
         Relationships: [
           {
@@ -270,6 +282,7 @@ export type Database = {
           model: string | null
           role: string
           user_id: string
+          web_sources: Json | null
         }
         Insert: {
           citations?: Json | null
@@ -280,6 +293,7 @@ export type Database = {
           model?: string | null
           role: string
           user_id?: string
+          web_sources?: Json | null
         }
         Update: {
           citations?: Json | null
@@ -290,6 +304,7 @@ export type Database = {
           model?: string | null
           role?: string
           user_id?: string
+          web_sources?: Json | null
         }
         Relationships: [
           {
@@ -356,6 +371,9 @@ export type Database = {
           ingest_error: string | null
           ingest_heartbeat_at: string | null
           language: string | null
+          isbn: string | null
+          published: string | null
+          publisher: string | null
           status: Database["public"]["Enums"]["ingest_status"]
           title: string | null
           toc: Json | null

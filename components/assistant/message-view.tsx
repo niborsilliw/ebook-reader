@@ -31,6 +31,8 @@ export function MessageView({ message, bookTitle, streaming, onCite }: Props) {
   const cited = citedNumbers(text).flatMap((n) => (byN.has(n) ? [byN.get(n)!] : []));
   // Web pages it cites (from a web search), marked a, b, c… in the text.
   const web = webCitations(text);
+  // What the searches returned about each page (title, author, date), for "Cite".
+  const webPages = message.parts.flatMap((p) => (p.type === "data-web-sources" ? p.data : []));
   // Until the answer starts, and while it searches the web, the thread's
   // status line says what is happening instead.
   const cursor = streaming && hasText(message) && !isSearchingWeb(message);
@@ -42,7 +44,7 @@ export function MessageView({ message, bookTitle, streaming, onCite }: Props) {
         {cursor && <span className="ml-0.5 inline-block h-4 w-1.5 animate-pulse bg-foreground/40 align-middle" />}
       </div>
       {!streaming && cited.length + web.sources.length > 0 && (
-        <CitationChips citations={cited} webSources={web.sources} bookTitle={bookTitle} onCite={onCite} />
+        <CitationChips citations={cited} webSources={web.sources} webPages={webPages} bookTitle={bookTitle} onCite={onCite} />
       )}
     </div>
   );

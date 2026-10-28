@@ -12,6 +12,12 @@ describe("parseEpub — EPUB 3 (nav document)", async () => {
     expect(book.language).toBe("en");
   });
 
+  it("reads the publisher, date and ISBN for citations", () => {
+    expect(book.publisher).toBe("Secker & Warburg");
+    expect(book.published).toBe("1949-06-08");
+    expect(book.isbn).toBe("9780452284234");
+  });
+
   it("reads the toc nav (not landmarks), nested levels, hrefs relative to the OPF, decoded", () => {
     expect(book.toc).toEqual([
       { title: "Part One", href: "Text/chapter 1.xhtml", level: 0 },
@@ -59,6 +65,10 @@ describe("parseEpub — EPUB 2 (NCX)", async () => {
   it("reads metadata and NCX toc", () => {
     expect(book.title).toBe("Pride and Prejudice");
     expect(book.author).toBe("Jane Austen");
+    // The publication date, not the file's creation; the ISBN, not the UUID.
+    expect(book.published).toBe("1813");
+    expect(book.isbn).toBe("0141439513");
+    expect(book.publisher).toBeNull();
     expect(book.toc).toEqual([
       { title: "Chapter 1", href: "ch1.html", level: 0 },
       { title: "Chapter 1, part 2", href: "ch1.html#p2", level: 1 },

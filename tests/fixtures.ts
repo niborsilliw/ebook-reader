@@ -31,6 +31,9 @@ export async function epub3() {
     <dc:title>1984</dc:title>
     <dc:creator>George Orwell</dc:creator>
     <dc:language>en</dc:language>
+    <dc:publisher>Secker &amp; Warburg</dc:publisher>
+    <dc:date>1949-06-08</dc:date>
+    <dc:identifier>urn:isbn:978-0-452-28423-4</dc:identifier>
   </metadata>
   <manifest>
     <item id="nav" href="nav/toc.xhtml" media-type="application/xhtml+xml" properties="nav"/>
@@ -90,6 +93,10 @@ export async function epub2() {
     <dc:title>Pride and Prejudice</dc:title>
     <dc:creator opf:role="aut">Jane Austen</dc:creator>
     <dc:language>en</dc:language>
+    <dc:date opf:event="creation">2010-01-01</dc:date>
+    <dc:date opf:event="publication">1813</dc:date>
+    <dc:identifier opf:scheme="UUID">urn:uuid:00000000-0000-4000-8000-000000000000</dc:identifier>
+    <dc:identifier opf:scheme="ISBN">0-14-143951-3</dc:identifier>
     <meta name="cover" content="cov"/>
   </metadata>
   <manifest>

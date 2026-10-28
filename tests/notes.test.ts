@@ -93,6 +93,22 @@ describe("highlights and bookmarks RLS", () => {
     expect((await pg.query(`delete from public.highlights returning id`)).rows).toHaveLength(0);
   });
 
+  it("starts highlights unverified, and lets only their owner mark them verified", async () => {
+    await as(USER_ID);
+    const mine = (await pg.query<{ id: string; verified: boolean }>(
+      `insert into public.highlights (book_id, cfi_range, text) values ($1, 'c', 't') returning id, verified`,
+      [BOOK],
+    )).rows[0];
+    expect(mine.verified).toBe(false);
+    await pg.query(`update public.highlights set verified = true where id = $1`, [mine.id]);
+    expect((await pg.query<{ verified: boolean }>(`select verified from public.highlights where id = $1`, [mine.id])).rows[0].verified).toBe(true);
+
+    await as(OTHER_USER);
+    expect((await pg.query(`update public.highlights set verified = false where id = $1 returning id`, [mine.id])).rows).toHaveLength(0);
+    await as(USER_ID);
+    expect((await pg.query<{ verified: boolean }>(`select verified from public.highlights where id = $1`, [mine.id])).rows[0].verified).toBe(true);
+  });
+
   it("rejects unknown colours and duplicate bookmarks", async () => {
     await as(USER_ID);
     await expect(

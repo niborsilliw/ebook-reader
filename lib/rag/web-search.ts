@@ -3,6 +3,7 @@
 
 import { stepCountIs, tool } from "ai";
 import { z } from "zod";
+import type { WebPage } from "@/lib/cite/bibtex";
 
 const SEARCH_URL = "https://api.exa.ai/search";
 const NUM_RESULTS = 5;
@@ -59,21 +60,40 @@ function escapeAttr(s: string) {
   return s.replace(/"/g, "'");
 }
 
+type SearchOutput = { results: WebResult[] } | { error: string };
+
+/** The pages a step's web searches returned, for citations (no page text). */
+export function webPagesOf(toolResults: { toolName: string; output?: unknown }[]): WebPage[] {
+  return toolResults.flatMap((r) => {
+    const output = r.output as Partial<{ results: WebResult[] }> | undefined;
+    if (r.toolName !== "web_search" || !Array.isArray(output?.results)) return [];
+    return output.results.map(({ url, title, author, publishedDate }) => ({
+      url,
+      title,
+      author: author ?? null,
+      published_date: publishedDate ?? null,
+    }));
+  });
+}
+
 const webSearchTool = tool({
   description:
     "Search the web. Required for any factual question about something outside this book: another writer or person, a historical event, a place, a date, or a request to look something up. Not for questions about the book itself.",
   inputSchema: z.object({ query: z.string().min(1).max(300).describe("What to search for, as a short search query") }),
-  execute: async ({ query }) => {
+  // The results stay structured (the route keeps each page's title, author
+  // and date for citations); the model is given them as text.
+  execute: async ({ query }): Promise<SearchOutput> => {
     try {
       const results = await searchWeb(query);
       // So whoever runs the server can see when the companion went outside the book.
       console.info(`web search: ${JSON.stringify(query)} → ${results.length} results`);
-      return formatWebResults(results);
+      return { results };
     } catch (err) {
       console.error("web search failed", (err as Error).message);
-      return "(The web search failed. Answer from what you know, and say that you couldn't search.)";
+      return { error: "(The web search failed. Answer from what you know, and say that you couldn't search.)" };
     }
   },
+  toModelOutput: ({ output }) => ({ type: "text", value: "error" in output ? output.error : formatWebResults(output.results) }),
 });
 
 // A short reply asking for a search, or accepting one the companion offered.

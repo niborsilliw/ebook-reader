@@ -29,11 +29,11 @@ describe("web citations in an answer", () => {
   });
 
   it("puts a 'From the web' chip for each page after the book's, opening in a new tab", () => {
-    const chips = [...render(text).matchAll(/<li>(.*?)<\/li>/g)].map((m) => m[1]);
+    const chips = [...render(text).matchAll(/<li[^>]*>(.*?)<\/li>/g)].map((m) => m[1]);
     expect(chips.map(visibleText)).toEqual([
       "[1] From: The Stranger, Part One",
-      "[a] From the web: en.wikipedia.org",
-      "[b] From the web: plato.stanford.edu",
+      "[a] From the web: en.wikipedia.orgCite",
+      "[b] From the web: plato.stanford.eduCite",
     ]);
     expect(chips[2]).toMatch(/^<a href="https:\/\/plato.stanford.edu\/entries\/arendt\/" target="_blank" rel="noopener noreferrer"/);
   });

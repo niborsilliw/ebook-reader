@@ -1,3 +1,4 @@
+import { toIsbn } from "@/lib/cite/isbn";
 import JSZip from "jszip";
 import { XMLParser } from "fast-xml-parser";
 import { parse as parseHtml, type HTMLElement } from "node-html-parser";
@@ -22,6 +23,10 @@ export type ParsedEpub = {
   title: string | null;
   author: string | null;
   language: string | null;
+  /** For citations: dc:publisher, dc:date (the publication date if several), an ISBN identifier. */
+  publisher: string | null;
+  published: string | null;
+  isbn: string | null;
   toc: TocEntry[];
   sections: SpineSection[];
   cover: { data: Uint8Array; mediaType: string; ext: string } | null;
@@ -38,7 +43,7 @@ const xml = new XMLParser({
   parseTagValue: false,
   parseAttributeValue: false,
   textNodeName: "#text",
-  isArray: (name) => ["item", "itemref", "navPoint", "meta", "creator", "title", "language", "rootfile"].includes(name),
+  isArray: (name) => ["item", "itemref", "navPoint", "meta", "creator", "title", "language", "rootfile", "publisher", "date", "identifier"].includes(name),
 });
 
 export async function parseEpub(input: ArrayBuffer | Uint8Array): Promise<ParsedEpub> {
@@ -79,6 +84,9 @@ export async function parseEpub(input: ArrayBuffer | Uint8Array): Promise<Parsed
   const title = firstText(metadata.title);
   const author = asArray(metadata.creator).map(textOf).filter(Boolean).join(", ") || null;
   const language = firstText(metadata.language);
+  const publisher = firstText(metadata.publisher);
+  const published = publicationDate(asArray(metadata.date));
+  const isbn = findIsbn(asArray(metadata.identifier));
 
   const spineItems = asArray(pkg.spine?.itemref)
     .map((ref) => manifest.get(ref?.idref))
@@ -132,7 +140,7 @@ export async function parseEpub(input: ArrayBuffer | Uint8Array): Promise<Parsed
     }
   }
 
-  return { title, author, language, toc, sections, cover };
+  return { title, author, language, publisher, published, isbn, toc, sections, cover };
 }
 
 async function readToc(
@@ -268,6 +276,22 @@ function safeDecode(s: string) {
 
 function escapeRegExp(s: string) {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+// EPUB 2 can give several dates (opf:event="publication" | "creation" |
+// "modification"); EPUB 3 gives one dc:date, the publication date.
+function publicationDate(dates: unknown[]) {
+  const event = (d: unknown) => String((d as { event?: unknown })?.event ?? "").toLowerCase();
+  return textOf(dates.find((d) => event(d) === "publication")) ?? textOf(dates.find((d) => !event(d))) ?? null;
+}
+
+/** The first identifier that is a valid ISBN (see toIsbn). */
+function findIsbn(identifiers: unknown[]): string | null {
+  for (const id of identifiers) {
+    const isbn = toIsbn(textOf(id));
+    if (isbn) return isbn;
+  }
+  return null;
 }
 
 function asArray<T>(v: T | T[] | undefined | null): T[] {
