@@ -1,0 +1,123 @@
+// @vitest-environment jsdom
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { act } from "react";
+import { createRoot, type Root } from "react-dom/client";
+import type { Highlight } from "@/lib/notes/types";
+
+// The book itself (epub.js) can't run here: a stand-in viewer hands its
+// callbacks to the test, which plays the reader's taps through them.
+type ViewerProps = { onHighlightClick: (id: string) => void; onLocation: (loc: object) => void };
+const viewer: { props?: ViewerProps } = {};
+vi.mock("next/dynamic", () => ({
+  default: () => (props: ViewerProps) => {
+    viewer.props = props;
+    return null;
+  },
+}));
+vi.mock("next/link", () => ({ default: (props: object) => <a {...props} /> }));
+// Every Supabase query comes back empty.
+vi.mock("@/lib/supabase/browser", () => {
+  const empty = { data: [], error: null };
+  const query: object = new Proxy(() => {}, {
+    get: (_, key) => (key === "then" ? (resolve: (v: typeof empty) => void) => resolve(empty) : () => query),
+  });
+  return { createClient: () => query };
+});
+
+const { ReaderShell } = await import("@/components/reader/reader-shell");
+
+const OLD: Highlight = {
+  id: "h1",
+  cfi_range: "epubcfi(/6/4!/4/2,/1:0,/1:20)",
+  text: "Maman died today. Or yesterday maybe, I don't know.",
+  note: null,
+  color: "yellow",
+  chapter_title: "Part One",
+  verified: false,
+  created_at: "2026-01-01T00:00:00Z",
+};
+
+let root: Root;
+let container: HTMLDivElement;
+let requests: { message: string }[];
+
+beforeEach(() => {
+  (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+  Element.prototype.scrollIntoView = () => {};
+  requests = [];
+  vi.stubGlobal("fetch", async (_url: string, init: RequestInit) => {
+    requests.push(JSON.parse(String(init.body)));
+    return new Response("", { status: 500 });
+  });
+  container = document.createElement("div");
+  document.body.append(container);
+  root = createRoot(container);
+  act(() =>
+    root.render(
+      <ReaderShell
+        bookId="22222222-2222-4222-8222-222222222222"
+        userId="u"
+        title="The Stranger"
+        author="Albert Camus"
+        publication={{ publisher: null, published: null, isbn: null }}
+        fileUrl="/book.epub"
+        initialCfi={null}
+        initialPositionAt={null}
+        toc={[]}
+        ready
+        initialHighlights={[OLD]}
+        initialBookmarks={[]}
+      />,
+    ),
+  );
+});
+
+afterEach(() => {
+  act(() => root.unmount());
+  container.remove();
+  vi.unstubAllGlobals();
+});
+
+const tab = (name: string) => container.querySelector<HTMLButtonElement>(`#tab-${name}`)!;
+const attached = () => container.querySelector("#tabpanel-assistant form p")?.textContent?.replace("Asking about: ", "") ?? null;
+
+async function ask(question: string) {
+  const input = container.querySelector<HTMLTextAreaElement>("#chat-input")!;
+  await act(async () => {
+    Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")!.set!.call(input, question);
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+  });
+  await act(async () => {
+    container.querySelector<HTMLFormElement>("#tabpanel-assistant form")!.requestSubmit();
+    await new Promise((r) => setTimeout(r, 20));
+  });
+}
+
+describe("asking the assistant about an existing highlight", () => {
+  it("taps the highlight, opens the assistant, finds it attached, and sends it with the question", async () => {
+    act(() => viewer.props!.onHighlightClick("h1"));
+    expect(tab("notes").getAttribute("aria-selected")).toBe("true"); // the note opens, as before
+
+    act(() => tab("assistant").click());
+    expect(attached()).toBe(OLD.text);
+    expect(container.querySelector("#chat-input")!.getAttribute("placeholder")).toBe("Ask about this passage…");
+
+    await ask("Tell me more about this");
+    expect(requests).toHaveLength(1);
+    expect(requests[0].message).toBe(`> ${OLD.text}\n\nTell me more about this`);
+    expect(attached()).toBeNull(); // used up by the question
+  });
+
+  it("does the same for a highlight opened from the notes list", () => {
+    act(() => viewer.props!.onHighlightClick("h1"));
+    act(() => container.querySelector<HTMLButtonElement>('#tabpanel-assistant form button[aria-label^="Don’t ask"]')!.click());
+    expect(attached()).toBeNull();
+
+    const item = [...container.querySelectorAll<HTMLElement>("#tabpanel-notes button")].find((b) =>
+      b.textContent?.includes("Maman died today"),
+    )!;
+    act(() => item.click());
+    act(() => tab("assistant").click());
+    expect(attached()).toBe(OLD.text);
+  });
+});

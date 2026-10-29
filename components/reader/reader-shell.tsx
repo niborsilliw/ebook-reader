@@ -168,8 +168,11 @@ export function ReaderShell({
   }
 
   // Opening an item jumps to it and shows its note field and delete button.
-  // The panel stays open (on phones too) so the note can be written.
+  // The panel stays open (on phones too) so the note can be written. A
+  // highlight also becomes what the assistant will be asked about.
   const activate = ({ id, cfi }: { id: string; cfi: string }) => {
+    const h = highlights.find((x) => x.id === id);
+    if (h) setAskAbout(h.text);
     setActiveNote(id);
     api.current?.goTo(cfi);
   };
