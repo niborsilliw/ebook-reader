@@ -18,6 +18,9 @@ type Props = {
   onCite: (spineHref: string) => void;
   /** Shows a close button (omit when the panel's container has its own). */
   onClose?: () => void;
+  /** Text the reader selected or tapped in the book, for the next message. */
+  passage?: string | null;
+  onPassageUsed?: () => void;
 };
 
 // A thread is identified locally by a key; a brand-new chat has no
@@ -25,7 +28,7 @@ type Props = {
 type Thread = { key: string; conversationId: string | null; messages: ChatUIMessage[] };
 const newThread = (): Thread => ({ key: crypto.randomUUID(), conversationId: null, messages: [] });
 
-export function AssistantPanel({ bookId, bookTitle, ready, getCurrentHref, onCite, onClose }: Props) {
+export function AssistantPanel({ bookId, bookTitle, ready, getCurrentHref, onCite, onClose, passage, onPassageUsed }: Props) {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [thread, setThread] = useState<Thread>(newThread);
   const [loadingThread, setLoadingThread] = useState(false);
@@ -144,6 +147,8 @@ export function AssistantPanel({ bookId, bookTitle, ready, getCurrentHref, onCit
           onCite={onCite}
           onConversationCreated={onConversationCreated}
           onAnswered={loadConversations}
+          passage={passage}
+          onPassageUsed={onPassageUsed}
         />
       )}
     </div>

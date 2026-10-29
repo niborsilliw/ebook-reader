@@ -3,6 +3,7 @@
 import { useLayoutEffect, useRef, useState } from "react";
 import type { BookSelection } from "./epub-viewer";
 import { HIGHLIGHT_COLORS, type HighlightColor } from "@/lib/notes/colors";
+import { AsteriskIcon } from "./icons";
 
 const GAP = 8; // between the bar and the selection
 const EDGE = 8; // minimum distance from the screen edges
@@ -11,6 +12,8 @@ type Props = {
   selection: BookSelection;
   busy: boolean;
   onHighlight: (color: HighlightColor) => void;
+  /** Opens the assistant to ask about the selection. */
+  onAsk: () => void;
 };
 
 /**
@@ -18,7 +21,7 @@ type Props = {
  * the selection, clamped to the screen edges, and placed below the selection on
  * touch screens, where the system's own copy/share menu appears above it.
  */
-export function SelectionBar({ selection, busy, onHighlight }: Props) {
+export function SelectionBar({ selection, busy, onHighlight, onAsk }: Props) {
   const ref = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState<{ left: number; top: number } | null>(null);
 
@@ -66,6 +69,15 @@ export function SelectionBar({ selection, busy, onHighlight }: Props) {
           </button>
         ))}
       </div>
+      <button
+        type="button"
+        onClick={onAsk}
+        title="Ask the assistant about this"
+        className="flex items-center gap-1.5 border-l border-white/15 pr-3.5 pl-3 font-serif hover:bg-white/10"
+      >
+        <AsteriskIcon className="size-[14px] opacity-80" />
+        Ask
+      </button>
     </div>
   );
 }

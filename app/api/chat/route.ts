@@ -12,6 +12,7 @@ import { wantsSearch, webPagesOf, webSearchOptions } from "@/lib/rag/web-search"
 import type { WebPage } from "@/lib/cite/bibtex";
 import type { ChatUIMessage } from "@/lib/chat/types";
 import { chatErrorMessage, upstreamStatus } from "@/lib/chat/errors";
+import { PASSAGE_MAX_CHARS, splitPassage } from "@/lib/chat/passage";
 
 export const maxDuration = 60;
 
@@ -23,7 +24,8 @@ const WEB_SEARCH = PROMPT_MODE === "companion" && Boolean(process.env.EXA_API_KE
 const Body = z.object({
   bookId: z.uuid(),
   conversationId: z.uuid().nullish(),
-  message: z.string().trim().min(1).max(4000),
+  // The question, with any passage the reader selected quoted before it.
+  message: z.string().trim().min(1).max(4000 + PASSAGE_MAX_CHARS + 10),
   currentHref: z.string().max(1000).nullish(),
 });
 
@@ -35,6 +37,7 @@ export async function POST(request: Request) {
   if (!parsed.success) return NextResponse.json({ error: "Invalid request" }, { status: 400 });
   const { bookId, message, currentHref } = parsed.data;
   let conversationId = parsed.data.conversationId ?? null;
+  const { passage, question } = splitPassage(message);
 
   // Everything below runs as the user, so RLS scopes books, chunks,
   // conversations and messages to their own.
@@ -67,7 +70,8 @@ export async function POST(request: Request) {
   // half-created conversation or unanswered message behind.
   let sources;
   try {
-    const previousQuestion = history.filter((m) => m.role === "user").at(-1)?.content;
+    const lastAsked = history.filter((m) => m.role === "user").at(-1)?.content;
+    const previousQuestion = lastAsked === undefined ? undefined : splitPassage(lastAsked).question;
     sources = await retrieveSources(
       {
         embedQuery: async (text) => (await embedTexts([text]))[0],
@@ -81,7 +85,12 @@ export async function POST(request: Request) {
           return (data ?? []) as MatchRow[];
         },
       },
-      { bookId, query: buildRetrievalQuery(message, previousQuestion), currentHref },
+      {
+        bookId,
+        // The selected passage is the best guide to where in the book the reader is asking about.
+        query: passage ? `${passage}\n${question}` : buildRetrievalQuery(question, previousQuestion),
+        currentHref,
+      },
     );
   } catch (err) {
     console.error("chat retrieval failed", (err as Error).message);
@@ -94,7 +103,7 @@ export async function POST(request: Request) {
 
   let createdTitle: string | null = null;
   if (!conversationId) {
-    createdTitle = conversationTitle(message);
+    createdTitle = conversationTitle(question);
     const { data: created, error } = await supabase
       .from("conversations")
       .insert({ book_id: bookId, title: createdTitle })
@@ -126,7 +135,7 @@ export async function POST(request: Request) {
         system: prompt.system,
         messages: prompt.messages,
         temperature: PROMPT_MODE === "grounded" ? 0.2 : 0.6,
-        ...(WEB_SEARCH && webSearchOptions({ force: wantsSearch(message, lastReply) })),
+        ...(WEB_SEARCH && webSearchOptions({ force: wantsSearch(question, lastReply) })),
         // Each search's pages go to the reader as they arrive (to cite them)
         // and are saved with the answer.
         onStepFinish: (step) => {

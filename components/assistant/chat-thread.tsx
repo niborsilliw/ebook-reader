@@ -7,6 +7,7 @@ import type { ChatRequestBody, ChatUIMessage } from "@/lib/chat/types";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { activityLabel } from "@/lib/chat/activity";
+import { withPassage } from "@/lib/chat/passage";
 import { MessageView } from "./message-view";
 
 type Props = {
@@ -18,10 +19,13 @@ type Props = {
   onCite: (spineHref: string) => void;
   onConversationCreated: (c: { id: string; title: string }) => void;
   onAnswered: () => void;
+  /** Text the reader selected or tapped in the book; goes with the next message. */
+  passage?: string | null;
+  onPassageUsed?: () => void;
 };
 
 export function ChatThread(props: Props) {
-  const { bookId, bookTitle, initialMessages, getCurrentHref, onCite } = props;
+  const { bookId, bookTitle, initialMessages, getCurrentHref, onCite, passage, onPassageUsed } = props;
   const [input, setInput] = useState("");
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -74,7 +78,8 @@ export function ChatThread(props: Props) {
     if (!text || busy) return;
     clearError();
     setInput("");
-    void sendMessage({ text });
+    onPassageUsed?.();
+    void sendMessage({ text: withPassage(passage, text) });
   }
 
   return (
@@ -111,6 +116,23 @@ export function ChatThread(props: Props) {
           submit();
         }}
       >
+        {passage && (
+          <div className="mb-2 flex items-start gap-2 rounded-md border-l-2 border-[#c9bfae] bg-muted/60 py-1.5 pr-1 pl-2.5">
+            <p className="line-clamp-3 min-w-0 flex-1 font-serif text-sm italic text-[#4a453e]">
+              <span className="sr-only">Asking about: </span>
+              {passage}
+            </p>
+            <button
+              type="button"
+              onClick={onPassageUsed}
+              aria-label="Don’t ask about this passage"
+              title="Don’t ask about this passage"
+              className="grid size-6 shrink-0 place-items-center rounded text-[#8c8478] hover:bg-black/5 hover:text-[#1f1d1a]"
+            >
+              ✕
+            </button>
+          </div>
+        )}
         <label htmlFor="chat-input" className="sr-only">
           Ask a question about this book
         </label>
@@ -124,7 +146,7 @@ export function ChatThread(props: Props) {
               submit();
             }
           }}
-          placeholder="Ask a question about this book…"
+          placeholder={passage ? "Ask about this passage…" : "Ask a question about this book…"}
           rows={2}
           maxLength={4000}
           className="max-h-40 resize-none"

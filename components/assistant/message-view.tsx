@@ -10,6 +10,7 @@ import { webCitations, type CitedPiece } from "@/lib/chat/links";
 import { CitationChips } from "./citation-chips";
 import { CopyIcon } from "@/components/reader/icons";
 import { copyText } from "@/lib/cite/copy";
+import { splitPassage } from "@/lib/chat/passage";
 import { toast } from "sonner";
 
 type Props = {
@@ -23,8 +24,16 @@ export function MessageView({ message, bookTitle, streaming, onCite }: Props) {
   const text = message.parts.map((p) => (p.type === "text" ? p.text : "")).join("");
 
   if (message.role === "user") {
+    const { passage, question } = splitPassage(text);
     return (
-      <div className="ml-8 rounded-lg bg-muted px-3 py-2 text-sm whitespace-pre-wrap">{text}</div>
+      <div className="ml-8 rounded-lg bg-muted px-3 py-2 text-sm whitespace-pre-wrap">
+        {passage && (
+          <blockquote className="mb-1.5 line-clamp-4 border-l-2 border-[#c9bfae] pl-2 font-serif italic text-[#4a453e]">
+            {passage}
+          </blockquote>
+        )}
+        {question}
+      </div>
     );
   }
 

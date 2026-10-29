@@ -80,12 +80,28 @@ export function ReaderShell({
   const [activeNote, setActiveNote] = useState<string | null>(null); // open item in the notes panel
   const [focusNote, setFocusNote] = useState(0);
   const [location, setLocation] = useState<ReaderLocation | null>(null);
+  // The last text selected or highlight tapped: the assistant takes it as
+  // what the reader's next question is about, until it is sent, dismissed,
+  // or the reader turns the page.
+  const [askAbout, setAskAbout] = useState<string | null>(null);
   const api = useRef<ReaderApi | null>(null);
   const currentHref = useRef<string | null>(null);
+  const pageStart = useRef<string | null>(null);
+  const drawerOpen = useRef(false);
+  drawerOpen.current = drawer !== null;
 
   const onLocation = useCallback((loc: ReaderLocation) => {
     setLocation(loc);
     currentHref.current = loc.href;
+    // Turning the page moves on from the passage; jumps made from the
+    // drawer (a citation, a note) don't.
+    if (pageStart.current && loc.start !== pageStart.current && !drawerOpen.current) setAskAbout(null);
+    pageStart.current = loc.start;
+  }, []);
+
+  const onSelection = useCallback((sel: BookSelection | null) => {
+    setSelection(sel);
+    if (sel) setAskAbout(sel.text);
   }, []);
 
   // A bookmark marks the page it falls on, wherever the page breaks are on
@@ -158,8 +174,11 @@ export function ReaderShell({
     api.current?.goTo(cfi);
   };
 
-  // Tapping a highlight in the text opens its note in the panel.
+  // Tapping a highlight in the text opens its note in the panel, and makes
+  // it what the assistant will be asked about.
   const openHighlight = (id: string) => {
+    const h = highlights.find((x) => x.id === id);
+    if (h) setAskAbout(h.text);
     openDrawer("right", "notes");
     setActiveNote(id);
     setFocusNote((n) => n + 1);
@@ -285,7 +304,7 @@ export function ReaderShell({
           initialPositionAt={initialPositionAt}
           toc={toc}
           highlights={highlights}
-          onSelection={setSelection}
+          onSelection={onSelection}
           onHighlightClick={openHighlight}
           onLocation={onLocation}
           onReady={(r) => (api.current = r)}
@@ -296,7 +315,12 @@ export function ReaderShell({
       </main>
 
       {selection && (
-        <SelectionBar selection={selection} busy={saving} onHighlight={(color) => void saveHighlight(selection, color)} />
+        <SelectionBar
+          selection={selection}
+          busy={saving}
+          onHighlight={(color) => void saveHighlight(selection, color)}
+          onAsk={() => openDrawer("right", "assistant")}
+        />
       )}
 
       {/* Like a printed page: the chapter and a page number, nothing to chase. */}
@@ -382,6 +406,8 @@ export function ReaderShell({
             ready={ready}
             getCurrentHref={() => currentHref.current}
             onCite={(href) => api.current?.goTo(href)}
+            passage={askAbout}
+            onPassageUsed={() => setAskAbout(null)}
           />
         </div>
       </Drawer>
