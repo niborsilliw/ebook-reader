@@ -69,3 +69,13 @@ export function CopyIcon(props: IconProps) {
     </Icon>
   );
 }
+
+/** Share: a leaf with an arrow rising out of it. */
+export function ShareIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M8.5 9.5h-2a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h11a1 1 0 0 0 1-1v-9a1 1 0 0 0-1-1h-2" />
+      <path d="M12 14.5V3.5M8.5 7 12 3.5 15.5 7" />
+    </Icon>
+  );
+}

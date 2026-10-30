@@ -35,12 +35,14 @@ const MULTI_TAP_SLOP_PX = 24;
 // A mouse event this soon after a touch is the browser's emulation of it.
 const TOUCH_MOUSE_MS = 800;
 const RESIZE_SETTLE_MS = 150;
+// After a text size change, how long the chapter takes to settle at the new size.
+const RETYPE_SETTLE_MS = 400;
 // From tablet width up (Tailwind's sm, where the page margins widen) the text
 // is set smaller, like a printed paperback: Libre Baskerville's tall x-height
 // makes the 16px body most books ask for read as large print. Phones keep the
 // book's own size.
 const WIDE_QUERY = "(min-width: 640px)";
-const WIDE_FONT_SIZE = "13.5px";
+const WIDE_FONT_SIZE = 13.5; // px
 // From here up the book opens as a two-page spread, like a physical book.
 // Each page's text is a little under half the container (epub.js puts a
 // gutter between and around the pages), so below this the pages would be
@@ -108,6 +110,8 @@ type Props = {
   onEdgeSwipe?: (side: "left" | "right") => void;
   /** A tap on the page that isn't on a highlight. */
   onTap?: () => void;
+  /** The reader's text size, as a multiple of the normal size. */
+  textScale?: number;
 };
 
 type Position = { cfi: string; percentage: number | null; spine_href: string };
@@ -134,6 +138,7 @@ export function EpubViewer({
   pageMarker,
   onEdgeSwipe,
   onTap,
+  textScale = 1,
 }: Props) {
   const rootRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -171,6 +176,9 @@ export function EpubViewer({
   onEdgeSwipeRef.current = onEdgeSwipe;
   const onTapRef = useRef(onTap);
   onTapRef.current = onTap;
+  const textScaleRef = useRef(textScale);
+  // Re-sets the text at the current size, once the book is open.
+  const retypeRef = useRef<() => void>(() => {});
 
   useEffect(() => {
     const el = containerRef.current;
@@ -623,7 +631,28 @@ export function EpubViewer({
         displayed = true;
         setStatus("ready");
         // epub.js creates its view manager on the first display.
-        hookPageMoves((rendition as unknown as { manager: PageMover }).manager);
+        const manager = (rendition as unknown as { manager: PageMover }).manager;
+        hookPageMoves(manager);
+
+        // A new text size: set it, then lay the chapter out again from the
+        // start of the page being read, so the reader stays on their words.
+        retypeRef.current = () => {
+          if (cancelled) return;
+          // Read before the new size reflows the page under it.
+          const here = (rendition.currentLocation() as unknown as Location | undefined)?.start?.cfi ?? anchor;
+          if (!applyTypeScale(rendition)) return;
+          manager.clear();
+          const redisplay = async () => {
+            if (!here) return void (await rendition.display());
+            await displayAt(here);
+            // The chapter is still settling at the new size when display()
+            // returns, and the page under the reader can slip back a few as
+            // it does; once it has settled, show the reader's place again.
+            await new Promise((resolve) => setTimeout(resolve, RETYPE_SETTLE_MS));
+            if (!cancelled) await displayAt(here);
+          };
+          void redisplay().catch((err) => console.error("[reader] couldn't re-lay out at the new text size", err));
+        };
 
         // --- follow moves made on other devices --------------------------
         // Polls the saved position and jumps to it when another device saved
@@ -720,17 +749,24 @@ export function EpubViewer({
     };
     window.addEventListener("keyup", onWindowKey);
 
-    // Sets (or clears) the tablet/desktop body size. An !important inline
-    // style, as the book's own stylesheet often sizes the body itself. epub.js
-    // applies it to each chapter before laying it out.
-    let wideType: boolean | null = null;
+    // Sets (or clears) the body size for the screen width and the reader's
+    // text size. An !important inline style, as the book's own stylesheet
+    // often sizes the body itself. epub.js applies it to each chapter before
+    // laying it out. Says whether anything changed.
+    let typeSet: string | null = null;
     function applyTypeScale(r: Rendition) {
       const wide = window.matchMedia(WIDE_QUERY).matches;
-      if (wide === wideType) return;
-      wideType = wide;
-      if (wide) r.themes.override("font-size", WIDE_FONT_SIZE, true);
+      const scale = textScaleRef.current;
+      const key = `${wide}:${scale}`;
+      if (key === typeSet) return false;
+      typeSet = key;
+      if (wide) r.themes.override("font-size", `${+(WIDE_FONT_SIZE * scale).toFixed(2)}px`, true);
+      // On a phone the book's own size usually wins over the theme's, and is
+      // usually the reader's default: scale that.
+      else if (scale !== 1) r.themes.override("font-size", `${Math.round(scale * 100)}%`, true);
       // removeOverride exists in epub.js but is missing from its types.
       else (r.themes as unknown as { removeOverride(name: string): void }).removeOverride("font-size");
+      return true;
     }
 
     // Two pages or one. Switched by the same breakpoint as the column's width
@@ -781,6 +817,12 @@ export function EpubViewer({
       book?.destroy();
     };
   }, [bookId, userId, fileUrl, initialCfi, initialPositionAt, toc]);
+
+  useEffect(() => {
+    if (textScaleRef.current === textScale) return;
+    textScaleRef.current = textScale;
+    retypeRef.current();
+  }, [textScale]);
 
   // Draw highlights. epub.js keeps annotations and re-applies them whenever a
   // section is rendered, so each one only needs adding once per rendition.

@@ -21,6 +21,7 @@ import type { HighlightColor } from "@/lib/notes/colors";
 import { compareCfi } from "@/lib/notes/order";
 import { bookBibtex } from "@/lib/cite/bibtex";
 import { copyBib } from "@/lib/cite/copy";
+import { loadTextSize, nextTextSize, saveTextSize, textScale, textSizeLabel, type TextSize } from "@/lib/reader/text-size";
 
 // epub.js touches `window` at import time.
 const EpubViewer = dynamic(() => import("./epub-viewer").then((m) => m.EpubViewer), {
@@ -54,6 +55,9 @@ const RIGHT_TABS = [
 ] as const;
 type RightTab = (typeof RIGHT_TABS)[number]["id"];
 
+// The "Aa" button is drawn at a size that hints at the text size it sets.
+const TEXT_SIZE_GLYPH: Record<TextSize, string> = { small: "text-[0.8rem]", default: "text-[0.95rem]", large: "text-[1.1rem]" };
+
 export function ReaderShell({
   bookId,
   userId,
@@ -84,6 +88,7 @@ export function ReaderShell({
   // what the reader's next question is about, until it is sent, dismissed,
   // or the reader turns the page.
   const [askAbout, setAskAbout] = useState<string | null>(null);
+  const [textSize, setTextSize] = useState<TextSize>("default");
   const api = useRef<ReaderApi | null>(null);
   const currentHref = useRef<string | null>(null);
   const pageStart = useRef<string | null>(null);
@@ -288,6 +293,15 @@ export function ReaderShell({
     });
   }
 
+  // Stored in this browser, so read after the first (server-matching) render.
+  useEffect(() => setTextSize(loadTextSize()), []);
+
+  const cycleTextSize = () => {
+    const next = nextTextSize(textSize);
+    setTextSize(next);
+    saveTextSize(next);
+  };
+
   useEffect(() => {
     if (!drawer) return;
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && setDrawer(null);
@@ -314,6 +328,7 @@ export function ReaderShell({
           pageMarker={<BookmarkRibbon marked={!!pageBookmark} busy={saving} onToggle={() => void toggleBookmark()} />}
           onEdgeSwipe={(side) => openDrawer(side)}
           onTap={() => setRevealControls((n) => n + 1)}
+          textScale={textScale(textSize)}
         />
       </main>
 
@@ -383,6 +398,17 @@ export function ReaderShell({
             </button>
           ))}
           <span className="flex-1" />
+          <button
+            type="button"
+            onClick={cycleTextSize}
+            aria-label={`Text size: ${textSizeLabel(textSize)}. Change text size`}
+            title={`Text size: ${textSizeLabel(textSize)}`}
+            className="grid h-8 w-9 place-items-center rounded-md font-serif text-[#6b655c] hover:bg-black/5 hover:text-[#1f1d1a]"
+          >
+            <span aria-hidden className={TEXT_SIZE_GLYPH[textSize]}>
+              Aa
+            </span>
+          </button>
           <Button variant="ghost" size="sm" onClick={closeDrawer} aria-label="Close notes and assistant">
             <CloseIcon className="size-4" />
           </Button>

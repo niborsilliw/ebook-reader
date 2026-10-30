@@ -135,10 +135,10 @@ describe("Copy on an assistant reply", () => {
   const reply = { id: "a", role: "assistant", parts: [{ type: "text", text }] } as ChatUIMessage;
   const copyButton = () => container.querySelector<HTMLButtonElement>('button[aria-label="Copy reply"]');
 
-  it("copies the reply as written and says so", async () => {
+  it("copies the reply as plain text and says so", async () => {
     act(() => root.render(<MessageView message={reply} bookTitle="B" streaming={false} onCite={() => {}} />));
     await act(async () => copyButton()!.click());
-    expect(clipboard!.writeText).toHaveBeenCalledWith(text);
+    expect(clipboard!.writeText).toHaveBeenCalledWith("Arendt admired The Rebel (https://plato.stanford.edu/entries/arendt/).");
     expect(toast.success).toHaveBeenCalledWith("Copied to clipboard.");
   });
 
@@ -155,5 +155,54 @@ describe("Copy on an assistant reply", () => {
     await act(async () => copyButton()!.click());
     expect(toast.error).toHaveBeenCalledWith("Couldn’t copy this reply.");
     expect(saved).toBeNull();
+  });
+});
+
+describe("Share on an assistant reply", () => {
+  const text = "Meursault won't *perform* grief [2].";
+  const plain = "Meursault won't perform grief.";
+  const reply = { id: "a", role: "assistant", parts: [{ type: "text", text }] } as ChatUIMessage;
+  const shareButton = () => container.querySelector<HTMLButtonElement>('button[aria-label="Share reply"]');
+  const render = () => act(() => root.render(<MessageView message={reply} bookTitle="The Stranger" streaming={false} onCite={() => {}} />));
+  let share: ReturnType<typeof vi.fn> | undefined;
+  beforeEach(() => {
+    share = vi.fn(async () => {});
+    Object.defineProperty(navigator, "share", { configurable: true, get: () => share });
+  });
+
+  it("opens the system share sheet with the reply as plain text", async () => {
+    render();
+    await act(async () => shareButton()!.click());
+    expect(share).toHaveBeenCalledWith({ title: "The Stranger", text: plain });
+    expect(clipboard!.writeText).not.toHaveBeenCalled();
+  });
+
+  it("does nothing more when the reader cancels the share sheet", async () => {
+    share!.mockRejectedValueOnce(Object.assign(new Error("cancelled"), { name: "AbortError" }));
+    render();
+    await act(async () => shareButton()!.click());
+    expect(clipboard!.writeText).not.toHaveBeenCalled();
+    expect(toast.error).not.toHaveBeenCalled();
+  });
+
+  it("copies instead where there is no share sheet, or it fails", async () => {
+    share = undefined;
+    render();
+    await act(async () => shareButton()!.click());
+    expect(clipboard!.writeText).toHaveBeenCalledWith(plain);
+    expect(toast.success).toHaveBeenCalledWith("Copied to clipboard.");
+
+    share = vi.fn(async () => Promise.reject(Object.assign(new Error("no"), { name: "NotAllowedError" })));
+    clipboard!.writeText.mockClear();
+    await act(async () => shareButton()!.click());
+    expect(clipboard!.writeText).toHaveBeenCalledWith(plain);
+  });
+
+  it("says so when neither works", async () => {
+    share = undefined;
+    clipboard = undefined;
+    render();
+    await act(async () => shareButton()!.click());
+    expect(toast.error).toHaveBeenCalledWith("Couldn’t share this reply.");
   });
 });

@@ -3,10 +3,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import type { Highlight } from "@/lib/notes/types";
+import { memoryStorage } from "./helpers/storage";
 
 // The book itself (epub.js) can't run here: a stand-in viewer hands its
 // callbacks to the test, which plays the reader's taps through them.
-type ViewerProps = { onHighlightClick: (id: string) => void; onLocation: (loc: object) => void };
+type ViewerProps = { onHighlightClick: (id: string) => void; onLocation: (loc: object) => void; textScale?: number };
 const viewer: { props?: ViewerProps } = {};
 vi.mock("next/dynamic", () => ({
   default: () => (props: ViewerProps) => {
@@ -42,6 +43,8 @@ let container: HTMLDivElement;
 let requests: { message: string }[];
 
 beforeEach(() => {
+  vi.stubGlobal("localStorage", memoryStorage());
+  localStorage.setItem("reader:text-size", "large");
   (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
   Element.prototype.scrollIntoView = () => {};
   requests = [];
@@ -119,5 +122,29 @@ describe("asking the assistant about an existing highlight", () => {
     act(() => item.click());
     act(() => tab("assistant").click());
     expect(attached()).toBe(OLD.text);
+  });
+});
+
+describe("the Aa button", () => {
+  const aa = () => container.querySelector<HTMLButtonElement>('button[aria-label^="Text size"]')!;
+
+  it("opens at the size saved in this browser, and cycles through the three sizes, saving each", () => {
+    expect(viewer.props!.textScale).toBe(1.1);
+    expect(aa().title).toBe("Text size: Large");
+
+    act(() => aa().click());
+    expect(viewer.props!.textScale).toBe(0.9);
+    expect(aa().title).toBe("Text size: Small");
+    expect(localStorage.getItem("reader:text-size")).toBe("small");
+
+    act(() => aa().click());
+    expect(viewer.props!.textScale).toBe(1);
+    act(() => aa().click());
+    expect(viewer.props!.textScale).toBe(1.1);
+    expect(localStorage.getItem("reader:text-size")).toBe("large");
+  });
+
+  it("sits in the drawer's header beside the Notes and Assistant tabs", () => {
+    expect(aa().closest('[role="tablist"]')).not.toBeNull();
   });
 });

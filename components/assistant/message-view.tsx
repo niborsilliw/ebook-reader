@@ -8,8 +8,9 @@ import { hasText, isSearchingWeb } from "@/lib/chat/activity";
 import { splitEmphasis } from "@/lib/chat/emphasis";
 import { webCitations, type CitedPiece } from "@/lib/chat/links";
 import { CitationChips } from "./citation-chips";
-import { CopyIcon } from "@/components/reader/icons";
-import { copyText } from "@/lib/cite/copy";
+import { CopyIcon, ShareIcon } from "@/components/reader/icons";
+import { copyText, shareText } from "@/lib/cite/copy";
+import { plainReply } from "@/lib/chat/plain";
 import { splitPassage } from "@/lib/chat/passage";
 import { toast } from "sonner";
 
@@ -58,29 +59,47 @@ export function MessageView({ message, bookTitle, streaming, onCite }: Props) {
       {!streaming && cited.length + web.sources.length > 0 && (
         <CitationChips citations={cited} webSources={web.sources} webPages={webPages} bookTitle={bookTitle} onCite={onCite} />
       )}
-      {!streaming && text && <CopyReply text={text} />}
+      {!streaming && text && <ReplyActions text={text} bookTitle={bookTitle} />}
     </div>
   );
 }
 
+const REPLY_ACTION =
+  "grid size-6 place-items-center rounded text-[#8c8478] opacity-60 transition-opacity hover:bg-black/5 hover:text-[#1f1d1a] focus-visible:opacity-100 pointer-fine:opacity-0 pointer-fine:group-hover:opacity-100 pointer-fine:focus-visible:opacity-100";
+
 /**
- * Copies the reply as written (Markdown marks and web addresses included).
- * With a mouse it shows only while the pointer is over the reply; on a
- * touch screen, where there is no hover, it stays, small and faint.
+ * Copy and Share for a reply, both as plain text (see plainReply), so it
+ * reads cleanly wherever it lands. Share opens the system share sheet, or
+ * copies where there isn't one. With a mouse they show only while the
+ * pointer is over the reply; on a touch screen, where there is no hover,
+ * they stay, small and faint.
  */
-function CopyReply({ text }: { text: string }) {
+function ReplyActions({ text, bookTitle }: { text: string; bookTitle: string }) {
   return (
-    <button
-      type="button"
-      onClick={async () => {
-        if (!(await copyText(text))) toast.error("Couldn’t copy this reply.");
-      }}
-      aria-label="Copy reply"
-      title="Copy reply"
-      className="-my-1 -ml-1 grid size-6 place-items-center justify-self-start rounded text-[#8c8478] opacity-60 transition-opacity hover:bg-black/5 hover:text-[#1f1d1a] focus-visible:opacity-100 pointer-fine:opacity-0 pointer-fine:group-hover:opacity-100 pointer-fine:focus-visible:opacity-100"
-    >
-      <CopyIcon className="size-3.5" />
-    </button>
+    <div className="-my-1 -ml-1 flex gap-1 justify-self-start">
+      <button
+        type="button"
+        onClick={async () => {
+          if (!(await copyText(plainReply(text)))) toast.error("Couldn’t copy this reply.");
+        }}
+        aria-label="Copy reply"
+        title="Copy reply"
+        className={REPLY_ACTION}
+      >
+        <CopyIcon className="size-3.5" />
+      </button>
+      <button
+        type="button"
+        onClick={async () => {
+          if (!(await shareText(plainReply(text), bookTitle))) toast.error("Couldn’t share this reply.");
+        }}
+        aria-label="Share reply"
+        title="Share reply"
+        className={REPLY_ACTION}
+      >
+        <ShareIcon className="size-3.5" />
+      </button>
+    </div>
   );
 }
 
