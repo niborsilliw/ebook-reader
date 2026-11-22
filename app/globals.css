@@ -128,6 +128,14 @@
     @apply font-sans;
   }
 }
+/* The reader is one fixed screen: the page never scrolls, only epub.js's
+   pagination moves the book. (The drawers' own lists still scroll.) */
+html:has(body [data-reader]),
+html:has(body [data-reader]) body {
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
 /* Reader highlights are drawn by epub.js as an SVG layer over the page. It
    passes mix-blend-mode as an SVG attribute, which browsers ignore, so the
    colour would wash over the ink; multiplied, it tints the paper and leaves
