@@ -22,13 +22,18 @@ function Icon({ className, children }: IconProps & { children: React.ReactNode }
   );
 }
 
-/** Contents and library: three books lying in a stack, spines out, each a little
- *  offset from the one below, with a pair of bands near each end of the spine. */
+/** Contents and library: three books on a shelf, the last leaning on its
+ *  neighbour, each spine banded top and bottom like a Penguin classic. */
 export function BooksIcon(props: IconProps) {
   return (
     <Icon {...props}>
-      <path d="M3.5 16.5h17v4h-17zM5.5 12.5h14v4h-14zM4.5 8.5h13v4h-13z" />
-      <path d="M6 16.5v4M18 16.5v4M8 12.5v4M17 12.5v4M7 8.5v4M15 8.5v4" />
+      <path d="M3 20.5h18" />
+      <path d="M4.5 5h4v15.5h-4zM8.5 3.5h4v17h-4z" />
+      <path d="M4.5 8.5h4M4.5 17h4M8.5 7h4M8.5 17h4" />
+      <g transform="rotate(-14 15.9 20.5)">
+        <path d="M15.9 6.5h3.5v14h-3.5z" />
+        <path d="M15.9 9.6h3.5M15.9 17.4h3.5" />
+      </g>
     </Icon>
   );
 }
