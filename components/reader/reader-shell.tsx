@@ -302,7 +302,8 @@ export function ReaderShell({
     saveTextSize(next);
   };
 
-  // Shortcuts: ⌘/ (Ctrl+/ elsewhere) toggles the assistant, ⌘⇧H the notes. Pressed in the book they arrive from its iframe (see
+  // Shortcuts: ⌘/ (Ctrl+/ elsewhere) toggles the assistant, ⌘⇧H the contents
+  // and library. Pressed in the book they arrive from its iframe (see
   // onFrameKeyDown); anywhere else, on the window. The ref keeps one listener
   // seeing the current drawer and tab.
   const shortcut = useRef<(e: KeyboardEvent) => void>(() => {});
@@ -310,8 +311,11 @@ export function ReaderShell({
     const action = readerShortcut(e);
     if (!action) return;
     e.preventDefault();
-    if (drawer === "right" && rightTab === action) closeDrawer();
-    else openDrawer("right", action);
+    if (action === "assistant") {
+      if (drawer === "right" && rightTab === "assistant") closeDrawer();
+      else openDrawer("right", "assistant");
+    } else if (drawer === "left") closeDrawer();
+    else openDrawer("left");
   };
   const onShortcutKey = useCallback((e: KeyboardEvent) => shortcut.current(e), []);
   useEffect(() => {
@@ -328,9 +332,9 @@ export function ReaderShell({
   }, [drawer]);
 
   return (
-    <div data-reader className="relative flex h-dvh flex-col overflow-hidden bg-[#fbf9f4] text-[#1f1d1a]">
+    <div className="relative flex h-dvh flex-col bg-[#fbf9f4] text-[#1f1d1a]">
       <h1 className="sr-only">{title}</h1>
-      <main className="relative min-h-0 flex-1 overflow-hidden">
+      <main className="relative min-h-0 flex-1">
         <EpubViewer
           bookId={bookId}
           userId={userId}
@@ -463,11 +467,11 @@ export function ReaderShell({
   );
 }
 
-/** Which tab of the notes and assistant drawer a key press toggles, if it is one of the reader's shortcuts. */
+/** Which drawer a key press toggles, if it is one of the reader's shortcuts. */
 export function readerShortcut(e: Pick<KeyboardEvent, "key" | "code" | "metaKey" | "ctrlKey" | "shiftKey" | "altKey">) {
   if (!(e.metaKey || e.ctrlKey) || e.altKey) return null;
   if (!e.shiftKey && (e.key === "/" || e.code === "Slash")) return "assistant" as const;
-  if (e.shiftKey && (e.key.toLowerCase() === "h" || e.code === "KeyH")) return "notes" as const;
+  if (e.shiftKey && (e.key.toLowerCase() === "h" || e.code === "KeyH")) return "contents" as const;
   return null;
 }
 

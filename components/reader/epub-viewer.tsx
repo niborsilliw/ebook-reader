@@ -534,9 +534,7 @@ export function EpubViewer({
         spreadOn = window.matchMedia(SPREAD_QUERY).matches;
         rendition.themes.default({
           // Keep book content inside the page column on narrow screens.
-          // Books don't scroll: only epub.js's pagination moves the text, so a
-          // wide table or picture never brings up a scrollbar in the chapter.
-          "html, body": { "max-width": "100%", "box-sizing": "border-box", overflow: "hidden !important" },
+          "html, body": { "max-width": "100%", "box-sizing": "border-box" },
           // No double-tap zoom: a double tap selects the sentence.
           html: { "touch-action": "manipulation" },
           body: {
@@ -869,7 +867,7 @@ export function EpubViewer({
   const turn = (side: "prev" | "next") => turnRef.current(side);
 
   return (
-    <div ref={rootRef} className="absolute inset-0 flex items-stretch overflow-hidden">
+    <div ref={rootRef} className="absolute inset-0 flex items-stretch">
       <PageButton side="prev" disabled={status !== "ready" || edges.atStart} onClick={() => turn("prev")} />
       {/* min-w-0: epub.js sizes its container in pixels, which would otherwise
           stop this flex item shrinking to fit a phone screen. The width and
@@ -878,9 +876,6 @@ export function EpubViewer({
           white space. From SPREAD_QUERY up it holds a two-page spread of about
           46–58 characters a page, growing on bigger screens (about 60, then
           65) so the book fills more of the screen without overlong lines. */}
-      {/* No overflow-hidden here: on phones the bookmark ribbon hangs out of
-          this column into the margin. The epub.js container inside and the
-          root around it keep the book from ever scrolling. */}
       <div className="relative h-full w-full max-w-[38rem] min-w-0 py-8 sm:px-12 sm:py-12 min-[1000px]:max-w-[68rem] min-[1400px]:max-w-[72rem] min-[1700px]:max-w-[76rem]">
         <div ref={containerRef} className="h-full w-full overflow-hidden" />
         {status === "ready" && pageMarker}

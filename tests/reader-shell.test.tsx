@@ -175,14 +175,13 @@ describe("summoning the drawers", () => {
     expect(tab("assistant").getAttribute("aria-selected")).toBe("true");
   });
 
-  it("⌘⇧H toggles the notes, also when pressed inside the book's iframe", () => {
+  it("⌘⇧H toggles the contents and library, also when pressed inside the book's iframe", () => {
     press({ key: "H", code: "KeyH", metaKey: true, shiftKey: true });
-    expect(open("notes-drawer")).toBe(true);
-    expect(tab("notes").getAttribute("aria-selected")).toBe("true");
+    expect(open("contents-drawer")).toBe(true);
     const e = new KeyboardEvent("keydown", { key: "H", code: "KeyH", metaKey: true, shiftKey: true, cancelable: true });
     act(() => viewer.props!.onFrameKeyDown!(e));
     expect(e.defaultPrevented).toBe(true);
-    expect(open("notes-drawer")).toBe(false);
+    expect(open("contents-drawer")).toBe(false);
   });
 
   it("leaves other key presses alone", () => {
@@ -191,13 +190,13 @@ describe("summoning the drawers", () => {
     expect(open("contents-drawer") || open("notes-drawer")).toBe(false);
   });
 
-  it("opens each drawer from its corner button", () => {
-    act(() => container.querySelector<HTMLButtonElement>('button[aria-label="Contents and library"]')!.click());
+  it("opens each drawer from the faint tab on its edge", () => {
+    act(() => container.querySelector<HTMLButtonElement>('button[aria-label="Open contents and library"]')!.click());
     expect(open("contents-drawer")).toBe(true);
-    // The buttons go while a drawer is open, and come back when it closes.
-    expect(container.querySelector('button[aria-label="Notes and assistant"]')).toBeNull();
+    // The tabs go while a drawer is open, and come back when it closes.
+    expect(container.querySelector('button[aria-label="Open notes and assistant"]')).toBeNull();
     press({ key: "Escape" });
-    act(() => container.querySelector<HTMLButtonElement>('button[aria-label="Notes and assistant"]')!.click());
+    act(() => container.querySelector<HTMLButtonElement>('button[aria-label="Open notes and assistant"]')!.click());
     expect(open("notes-drawer")).toBe(true);
   });
 });

@@ -17,10 +17,10 @@
 
 **1. The Calm Page**
 *   Turn pages using the Left/Right Arrow keys (desktop) or by swiping/tapping the margins (mobile).
-*   The round button in the **top-left corner** (a shelf of books) opens the Library/Contents drawer.
-*   The round button in the **top-right corner** (speech bubbles) opens the Notes/Assistant drawer.
-*   The buttons are faint while you read; move your mouse near a corner, or tap the page on a phone, to bring them up.
-*   Keyboard: **⌘/** toggles the Assistant, **⌘⇧H** toggles Notes (Ctrl instead of ⌘ on Windows).
+*   Move your mouse to the **top-left corner** to open the Library/Contents drawer.
+*   Move your mouse to the **top-right corner** to open the Notes/Assistant drawer.
+*   Or click the faint grey tab half-way down the **left** or **right** edge of the screen.
+*   Keyboard: **⌘/** toggles the Assistant, **⌘⇧H** toggles the Library/Contents (Ctrl instead of ⌘ on Windows).
 
 **2. Adjusting the Text Size (The "Aa" Button)**
 *   If the text feels too small or too large, click the **"Aa"** button in the top-right drawer menu (next to Notes and Assistant).
