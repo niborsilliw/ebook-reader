@@ -8,7 +8,6 @@ import { colorFill } from "@/lib/notes/colors";
 import { createClient } from "@/lib/supabase/browser";
 import { BOOKS_BUCKET, locationsPath } from "@/lib/storage-paths";
 import { IMAGE_PAGE_STYLES, markImagePage } from "@/lib/reader/image-pages";
-import { TITLE_STYLES, markTitles } from "@/lib/reader/headings";
 import { BODY_FONT, installBodyFont } from "@/lib/reader/fonts";
 import { lockDownChapter } from "@/lib/reader/content-security";
 import { toIsbn } from "@/lib/cite/isbn";
@@ -560,13 +559,13 @@ export function EpubViewer({
           a: { color: "inherit" },
           "img, svg, video, table": { "max-width": "100%" },
           pre: { "white-space": "pre-wrap" },
-          ...TITLE_STYLES, // titles never justified or hyphenated
+          // Titles are never justified (a short wrapped title would be stretched).
+          "h1, h2, h3": { "text-align": "center" },
           ...IMAGE_PAGE_STYLES,
         });
         // Covers and other single-picture pages: centred at 60% width instead of full-bleed.
         rendition.hooks.content.register((contents: Contents) => {
           markImagePage(contents.document);
-          markTitles(contents.document);
           declareLanguage(contents.document, book?.packaging?.metadata?.language);
           // Hide the selection actions once the selection is gone (tap elsewhere).
           contents.document.addEventListener("selectionchange", () => {
