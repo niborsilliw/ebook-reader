@@ -9,6 +9,7 @@ import { createClient } from "@/lib/supabase/browser";
 import { BOOKS_BUCKET, locationsPath } from "@/lib/storage-paths";
 import { IMAGE_PAGE_STYLES, markImagePage } from "@/lib/reader/image-pages";
 import { BODY_FONT, installBodyFont } from "@/lib/reader/fonts";
+import { hideScrollbars } from "@/lib/reader/scrollbars";
 import { lockDownChapter } from "@/lib/reader/content-security";
 import { toIsbn } from "@/lib/cite/isbn";
 import { msSinceTouch, noteTouchEnd } from "@/lib/reader/last-touch";
@@ -564,6 +565,7 @@ export function EpubViewer({
         // Covers and other single-picture pages: centred at 60% width instead of full-bleed.
         rendition.hooks.content.register((contents: Contents) => {
           markImagePage(contents.document);
+          hideScrollbars(contents.document); // visually only: overflow stays, or pagination breaks
           declareLanguage(contents.document, book?.packaging?.metadata?.language);
           // Hide the selection actions once the selection is gone (tap elsewhere).
           contents.document.addEventListener("selectionchange", () => {

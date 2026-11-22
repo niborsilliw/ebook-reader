@@ -135,3 +135,19 @@
 .epub-container svg:has(> g[class^="reader-highlight-"]) {
   mix-blend-mode: multiply;
 }
+
+/* No scrollbars around the reader (the page, epub.js's container and its
+   views). Hidden visually only: overflow is left alone, because epub.js
+   scrolls its container to turn pages. The library and drawers keep theirs. */
+html:has(.epub-container),
+html:has(.epub-container) body,
+.epub-container,
+.epub-container .epub-view {
+  scrollbar-width: none;
+}
+html:has(.epub-container)::-webkit-scrollbar,
+html:has(.epub-container) body::-webkit-scrollbar,
+.epub-container::-webkit-scrollbar,
+.epub-container .epub-view::-webkit-scrollbar {
+  display: none;
+}
