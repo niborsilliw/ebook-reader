@@ -35,7 +35,7 @@ export function BookCard({ book, coverUrl }: { book: Book; coverUrl?: string }) 
           // eslint-disable-next-line @next/next/no-img-element
           <img src={coverUrl} alt="" className="aspect-[2/3] w-full object-cover" />
         ) : (
-          <div className="flex aspect-[2/3] items-center justify-center p-3 text-center text-sm font-medium text-muted-foreground">
+          <div className="flex aspect-[2/3] items-center justify-center p-3 text-center text-sm font-medium [overflow-wrap:anywhere] text-muted-foreground">
             {title}
           </div>
         )}
@@ -43,7 +43,7 @@ export function BookCard({ book, coverUrl }: { book: Book; coverUrl?: string }) 
 
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
-          <Link href={`/read/${book.id}`} className="line-clamp-2 text-sm font-medium hover:underline">
+          <Link href={`/read/${book.id}`} className="line-clamp-2 text-sm font-medium [overflow-wrap:anywhere] hover:underline">
             {title}
           </Link>
           {book.author && <p className="truncate text-xs text-muted-foreground">{book.author}</p>}
