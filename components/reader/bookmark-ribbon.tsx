@@ -25,7 +25,7 @@ export function BookmarkRibbon({ marked, busy, onToggle }: { marked: boolean; bu
         aria-hidden
         viewBox="0 0 18 44"
         className={cn(
-          "h-11 w-[18px] transition-[translate,fill] duration-300 ease-out motion-reduce:transition-none",
+          "h-11 w-[18px] shrink-0 transition-[translate,fill] duration-300 ease-out motion-reduce:transition-none",
           marked
             ? "translate-y-0 fill-[#8f2d2a]"
             : "-translate-y-[30px] fill-[#ddd5c7] group-hover:-translate-y-[24px] group-hover:fill-[#cbc0ad] group-focus-visible:-translate-y-[24px] group-focus-visible:fill-[#cbc0ad]",

@@ -876,7 +876,10 @@ export function EpubViewer({
           white space. From SPREAD_QUERY up it holds a two-page spread of about
           46–58 characters a page, growing on bigger screens (about 60, then
           65) so the book fills more of the screen without overlong lines. */}
-      <div className="relative h-full w-full max-w-[38rem] min-w-0 overflow-hidden py-8 sm:px-12 sm:py-12 min-[1000px]:max-w-[68rem] min-[1400px]:max-w-[72rem] min-[1700px]:max-w-[76rem]">
+      {/* No overflow-hidden here: on phones the bookmark ribbon hangs out of
+          this column into the margin. The epub.js container inside and the
+          root around it keep the book from ever scrolling. */}
+      <div className="relative h-full w-full max-w-[38rem] min-w-0 py-8 sm:px-12 sm:py-12 min-[1000px]:max-w-[68rem] min-[1400px]:max-w-[72rem] min-[1700px]:max-w-[76rem]">
         <div ref={containerRef} className="h-full w-full overflow-hidden" />
         {status === "ready" && pageMarker}
         {status === "loading" && <Overlay>Opening book…</Overlay>}
