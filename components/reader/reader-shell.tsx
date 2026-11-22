@@ -7,7 +7,7 @@ import { toast } from "sonner";
 import type { TocEntry } from "@/lib/epub/parse";
 import { Button } from "@/components/ui/button";
 import { Drawer } from "./drawer";
-import { AsteriskIcon, CloseIcon, NibIcon } from "./icons";
+import { CloseIcon, DialogueIcon, NibIcon } from "./icons";
 import { SummonControls } from "./summon-controls";
 import { TocList } from "./toc-list";
 import type { BookSelection, Publication, ReaderApi, ReaderLocation } from "./epub-viewer";
@@ -51,7 +51,7 @@ const BOOKMARK_LABEL_CHARS = 80;
 // The right drawer's tabs.
 const RIGHT_TABS = [
   { id: "notes", label: "Notes", Icon: NibIcon },
-  { id: "assistant", label: "Assistant", Icon: AsteriskIcon },
+  { id: "assistant", label: "Assistant", Icon: DialogueIcon },
 ] as const;
 type RightTab = (typeof RIGHT_TABS)[number]["id"];
 
@@ -302,6 +302,28 @@ export function ReaderShell({
     saveTextSize(next);
   };
 
+  // Shortcuts: ⌘/ (Ctrl+/ elsewhere) toggles the assistant, ⌘⇧H the contents
+  // and library. Pressed in the book they arrive from its iframe (see
+  // onFrameKeyDown); anywhere else, on the window. The ref keeps one listener
+  // seeing the current drawer and tab.
+  const shortcut = useRef<(e: KeyboardEvent) => void>(() => {});
+  shortcut.current = (e: KeyboardEvent) => {
+    const action = readerShortcut(e);
+    if (!action) return;
+    e.preventDefault();
+    if (action === "assistant") {
+      if (drawer === "right" && rightTab === "assistant") closeDrawer();
+      else openDrawer("right", "assistant");
+    } else if (drawer === "left") closeDrawer();
+    else openDrawer("left");
+  };
+  const onShortcutKey = useCallback((e: KeyboardEvent) => shortcut.current(e), []);
+  useEffect(() => {
+    // Capture, so a shortcut pressed in the assistant's text box still works.
+    window.addEventListener("keydown", onShortcutKey, true);
+    return () => window.removeEventListener("keydown", onShortcutKey, true);
+  }, [onShortcutKey]);
+
   useEffect(() => {
     if (!drawer) return;
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && setDrawer(null);
@@ -328,6 +350,7 @@ export function ReaderShell({
           pageMarker={<BookmarkRibbon marked={!!pageBookmark} busy={saving} onToggle={() => void toggleBookmark()} />}
           onEdgeSwipe={(side) => openDrawer(side)}
           onTap={() => setRevealControls((n) => n + 1)}
+          onFrameKeyDown={onShortcutKey}
           textScale={textScale(textSize)}
         />
       </main>
@@ -442,6 +465,14 @@ export function ReaderShell({
       </Drawer>
     </div>
   );
+}
+
+/** Which drawer a key press toggles, if it is one of the reader's shortcuts. */
+export function readerShortcut(e: Pick<KeyboardEvent, "key" | "code" | "metaKey" | "ctrlKey" | "shiftKey" | "altKey">) {
+  if (!(e.metaKey || e.ctrlKey) || e.altKey) return null;
+  if (!e.shiftKey && (e.key === "/" || e.code === "Slash")) return "assistant" as const;
+  if (e.shiftKey && (e.key.toLowerCase() === "h" || e.code === "KeyH")) return "contents" as const;
+  return null;
 }
 
 export function ReaderMessage({ children }: { children: React.ReactNode }) {

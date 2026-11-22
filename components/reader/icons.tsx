@@ -22,12 +22,13 @@ function Icon({ className, children }: IconProps & { children: React.ReactNode }
   );
 }
 
-/** Contents: a book seen from its spine, with paired raised bands and a title label. */
-export function SpineIcon(props: IconProps) {
+/** Contents and library: three books lying in a stack, spines out, each a little
+ *  offset from the one below, with a pair of bands near each end of the spine. */
+export function BooksIcon(props: IconProps) {
   return (
     <Icon {...props}>
-      <path d="M9 3.5h6v17H9z" />
-      <path d="M9 6.5h6M9 8h6M9 16h6M9 17.5h6M11 11.5h2" />
+      <path d="M3.5 16.5h17v4h-17zM5.5 12.5h14v4h-14zM4.5 8.5h13v4h-13z" />
+      <path d="M6 16.5v4M18 16.5v4M8 12.5v4M17 12.5v4M7 8.5v4M15 8.5v4" />
     </Icon>
   );
 }
@@ -43,11 +44,13 @@ export function NibIcon(props: IconProps) {
   );
 }
 
-/** Assistant: a typographic asterisk, the mark that points to a note. */
-export function AsteriskIcon(props: IconProps) {
+/** The assistant: a dialogue, two speech bubbles answering each other, the
+ *  nearer one drawn over the further. */
+export function DialogueIcon(props: IconProps) {
   return (
     <Icon {...props}>
-      <path d="M12 6v12M6.8 9l10.4 6M17.2 9 6.8 15" />
+      <path d="M8.5 13H6.5l-3 2.5V5.5a1.5 1.5 0 0 1 1.5-1.5h8.5A1.5 1.5 0 0 1 15 5.5V8" />
+      <path d="M10 8h8.5a1.5 1.5 0 0 1 1.5 1.5V20l-3-2.5h-7a1.5 1.5 0 0 1-1.5-1.5V9.5A1.5 1.5 0 0 1 10 8z" />
     </Icon>
   );
 }

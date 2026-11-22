@@ -7,7 +7,12 @@ import { memoryStorage } from "./helpers/storage";
 
 // The book itself (epub.js) can't run here: a stand-in viewer hands its
 // callbacks to the test, which plays the reader's taps through them.
-type ViewerProps = { onHighlightClick: (id: string) => void; onLocation: (loc: object) => void; textScale?: number };
+type ViewerProps = {
+  onHighlightClick: (id: string) => void;
+  onLocation: (loc: object) => void;
+  textScale?: number;
+  onFrameKeyDown?: (e: KeyboardEvent) => void;
+};
 const viewer: { props?: ViewerProps } = {};
 vi.mock("next/dynamic", () => ({
   default: () => (props: ViewerProps) => {
@@ -146,5 +151,52 @@ describe("the Aa button", () => {
 
   it("sits in the drawer's header beside the Notes and Assistant tabs", () => {
     expect(aa().closest('[role="tablist"]')).not.toBeNull();
+  });
+});
+
+describe("summoning the drawers", () => {
+  const open = (id: string) => !container.ownerDocument.getElementById(id)!.hasAttribute("inert");
+  const press = (init: KeyboardEventInit, target: EventTarget = window) => {
+    const e = new KeyboardEvent("keydown", { bubbles: true, cancelable: true, ...init });
+    act(() => void target.dispatchEvent(e));
+    return e;
+  };
+
+  it("⌘/ toggles the assistant, switching to its tab if the notes are showing", () => {
+    expect(press({ key: "/", code: "Slash", metaKey: true }).defaultPrevented).toBe(true);
+    expect(open("notes-drawer")).toBe(true);
+    expect(tab("assistant").getAttribute("aria-selected")).toBe("true");
+    press({ key: "/", code: "Slash", metaKey: true });
+    expect(open("notes-drawer")).toBe(false);
+
+    act(() => tab("notes").click());
+    press({ key: "/", code: "Slash", ctrlKey: true });
+    expect(open("notes-drawer")).toBe(true);
+    expect(tab("assistant").getAttribute("aria-selected")).toBe("true");
+  });
+
+  it("⌘⇧H toggles the contents and library, also when pressed inside the book's iframe", () => {
+    press({ key: "H", code: "KeyH", metaKey: true, shiftKey: true });
+    expect(open("contents-drawer")).toBe(true);
+    const e = new KeyboardEvent("keydown", { key: "H", code: "KeyH", metaKey: true, shiftKey: true, cancelable: true });
+    act(() => viewer.props!.onFrameKeyDown!(e));
+    expect(e.defaultPrevented).toBe(true);
+    expect(open("contents-drawer")).toBe(false);
+  });
+
+  it("leaves other key presses alone", () => {
+    expect(press({ key: "/" }).defaultPrevented).toBe(false);
+    expect(press({ key: "h", code: "KeyH", metaKey: true }).defaultPrevented).toBe(false);
+    expect(open("contents-drawer") || open("notes-drawer")).toBe(false);
+  });
+
+  it("opens each drawer from the faint tab on its edge", () => {
+    act(() => container.querySelector<HTMLButtonElement>('button[aria-label="Open contents and library"]')!.click());
+    expect(open("contents-drawer")).toBe(true);
+    // The tabs go while a drawer is open, and come back when it closes.
+    expect(container.querySelector('button[aria-label="Open notes and assistant"]')).toBeNull();
+    press({ key: "Escape" });
+    act(() => container.querySelector<HTMLButtonElement>('button[aria-label="Open notes and assistant"]')!.click());
+    expect(open("notes-drawer")).toBe(true);
   });
 });

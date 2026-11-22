@@ -110,6 +110,8 @@ type Props = {
   onEdgeSwipe?: (side: "left" | "right") => void;
   /** A tap on the page that isn't on a highlight. */
   onTap?: () => void;
+  /** Key presses inside the book's iframe, which never reach the page's window. */
+  onFrameKeyDown?: (e: KeyboardEvent) => void;
   /** The reader's text size, as a multiple of the normal size. */
   textScale?: number;
 };
@@ -138,6 +140,7 @@ export function EpubViewer({
   pageMarker,
   onEdgeSwipe,
   onTap,
+  onFrameKeyDown,
   textScale = 1,
 }: Props) {
   const rootRef = useRef<HTMLDivElement>(null);
@@ -176,6 +179,8 @@ export function EpubViewer({
   onEdgeSwipeRef.current = onEdgeSwipe;
   const onTapRef = useRef(onTap);
   onTapRef.current = onTap;
+  const onFrameKeyDownRef = useRef(onFrameKeyDown);
+  onFrameKeyDownRef.current = onFrameKeyDown;
   const textScaleRef = useRef(textScale);
   // Re-sets the text at the current size, once the book is open.
   const retypeRef = useRef<() => void>(() => {});
@@ -585,6 +590,7 @@ export function EpubViewer({
           schedule({ cfi: loc.start.cfi, percentage: r?.percentage ?? null, spine_href: safeDecode(loc.start.href) });
         });
         rendition.on("keyup", onKey); // key presses inside the book iframe
+        rendition.on("keydown", (e: KeyboardEvent) => onFrameKeyDownRef.current?.(e));
         rendition.on("touchstart", onTouchStart);
 
         // Displays a CFI (point or range) and checks the page shown contains it.

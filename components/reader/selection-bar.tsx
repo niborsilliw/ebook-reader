@@ -3,7 +3,7 @@
 import { useLayoutEffect, useRef, useState } from "react";
 import type { BookSelection } from "./epub-viewer";
 import { HIGHLIGHT_COLORS, type HighlightColor } from "@/lib/notes/colors";
-import { AsteriskIcon } from "./icons";
+import { DialogueIcon } from "./icons";
 
 const GAP = 8; // between the bar and the selection
 const EDGE = 8; // minimum distance from the screen edges
@@ -75,7 +75,7 @@ export function SelectionBar({ selection, busy, onHighlight, onAsk }: Props) {
         title="Ask the assistant about this"
         className="flex items-center gap-1.5 border-l border-white/15 pr-3.5 pl-3 font-serif hover:bg-white/10"
       >
-        <AsteriskIcon className="size-[14px] opacity-80" />
+        <DialogueIcon className="size-[14px] opacity-80" />
         Ask
       </button>
     </div>
