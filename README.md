@@ -17,7 +17,7 @@
 
 **1. The Calm Page**
 *   Turn pages using the Left/Right Arrow keys (desktop) or by swiping/tapping the margins (mobile).
-*   Move your mouse to the top-left corner (or tap the screen on mobile) to reveal the Bookshelf icon (Library/Contents) and the Conversation Bubble icon (Notes/Assistant).
+*   Move your mouse to the top-left or top-right corner (or tap the screen on mobile) to reveal the Bookshelf icon (Library/Contents, top left) and the Conversation Bubble icon (Notes/Assistant, top right).
 *   *Keyboard shortcuts:* `Cmd+/` for Assistant, `Cmd+Shift+H` for Notes.
 
 **2. Adjusting the Text Size**
