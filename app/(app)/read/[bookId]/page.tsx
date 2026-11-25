@@ -12,7 +12,7 @@ export async function generateMetadata({ params }: { params: Promise<{ bookId: s
   const { bookId } = await params;
   const supabase = await createClient();
   const { data } = await supabase.from("books").select("title").eq("id", bookId).maybeSingle();
-  return { title: data?.title ?? "Reader" };
+  return { title: data?.title ?? "Nancy" };
 }
 
 export default async function ReadPage({ params }: { params: Promise<{ bookId: string }> }) {

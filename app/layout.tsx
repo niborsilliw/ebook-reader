@@ -15,7 +15,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: { default: "Reader", template: "%s · Reader" },
+  title: { default: "Nancy", template: "%s · Nancy" },
+  applicationName: "Nancy",
+  appleWebApp: { capable: true, title: "Nancy", statusBarStyle: "default" },
   description: "EPUB reader with a research assistant",
 };
 
