@@ -150,7 +150,11 @@ export async function POST(request: Request) {
       // Persist once the full answer is known; the stream stays open until then.
       // `text` is only the last step's; a step before a search may have
       // written a line too, and the reader saw it.
-      const text = (await result.steps).map((step) => step.text).join("");
+      const steps = await result.steps;
+      const text = steps.map((step) => step.text).join("");
+      // What this answer cost: tokens across every step, and how many web searches ran.
+      const usage = await result.totalUsage;
+      const searches = steps.reduce((n, step) => n + (step.toolResults?.length ?? 0), 0);
       const [{ error: saveError }] = await Promise.all([
         supabase.from("messages").insert({
           conversation_id: convId,
@@ -159,6 +163,9 @@ export async function POST(request: Request) {
           citations: citationsFor(text, sources),
           web_sources: webPages.length ? (webPages as unknown as Json) : null,
           model: CHAT_MODEL,
+          input_tokens: usage.inputTokens ?? null,
+          output_tokens: usage.outputTokens ?? null,
+          web_searches: searches,
         }),
         supabase.from("conversations").update({ updated_at: new Date().toISOString() }).eq("id", convId),
       ]);

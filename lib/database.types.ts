@@ -283,6 +283,9 @@ export type Database = {
           role: string
           user_id: string
           web_sources: Json | null
+          input_tokens: number | null
+          output_tokens: number | null
+          web_searches: number | null
         }
         Insert: {
           citations?: Json | null
@@ -294,6 +297,9 @@ export type Database = {
           role: string
           user_id?: string
           web_sources?: Json | null
+          input_tokens?: number | null
+          output_tokens?: number | null
+          web_searches?: number | null
         }
         Update: {
           citations?: Json | null
@@ -305,6 +311,9 @@ export type Database = {
           role?: string
           user_id?: string
           web_sources?: Json | null
+          input_tokens?: number | null
+          output_tokens?: number | null
+          web_searches?: number | null
         }
         Relationships: [
           {
