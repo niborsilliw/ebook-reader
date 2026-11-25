@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 
 type State = { kind: "idle" } | { kind: "sending" } | { kind: "sent"; email: string } | { kind: "error"; message: string };
 
-export function LoginForm({ next, linkError }: { next?: string; linkError?: boolean }) {
+export function LoginForm({ next, linkError, invite }: { next?: string; linkError?: boolean; invite?: string }) {
   const [state, setState] = useState<State>(
     linkError ? { kind: "error", message: "That sign-in link is invalid or has expired. Request a new one." } : { kind: "idle" },
   );
@@ -23,6 +23,7 @@ export function LoginForm({ next, linkError }: { next?: string; linkError?: bool
 
     const callback = new URL("/auth/callback", window.location.origin);
     callback.searchParams.set("next", safeNextPath(next));
+    if (invite) callback.searchParams.set("invite", invite);
 
     const { error } = await createClient().auth.signInWithOtp({
       email,
@@ -35,7 +36,9 @@ export function LoginForm({ next, linkError }: { next?: string; linkError?: bool
     <Card className="w-full max-w-sm">
       <CardHeader>
         <CardTitle>Sign in</CardTitle>
-        <CardDescription>We&apos;ll email you a sign-in link.</CardDescription>
+        <CardDescription>
+          {invite ? "You've been invited to Nancy. " : ""}We&apos;ll email you a sign-in link.
+        </CardDescription>
       </CardHeader>
       <CardContent>
         {state.kind === "sent" ? (

@@ -272,6 +272,12 @@ export type Database = {
           },
         ]
       }
+      invite_codes: {
+        Row: { code: string; created_at: string; owner_id: string }
+        Insert: { code: string; created_at?: string; owner_id: string }
+        Update: { code?: string; created_at?: string; owner_id?: string }
+        Relationships: []
+      }
       messages: {
         Row: {
           citations: Json | null
@@ -360,9 +366,18 @@ export type Database = {
           },
         ]
       }
+      referrals: {
+        Row: { code: string; created_at: string; invited_by: string | null; user_id: string }
+        Insert: { code: string; created_at?: string; invited_by?: string | null; user_id: string }
+        Update: { code?: string; created_at?: string; invited_by?: string | null; user_id?: string }
+        Relationships: []
+      }
     }
     Views: {
-      [_ in never]: never
+      invite_tree: {
+        Row: { code: string | null; invited_by: string | null; joined_at: string | null; reader: string | null }
+        Relationships: []
+      }
     }
     Functions: {
       claim_ingest: {

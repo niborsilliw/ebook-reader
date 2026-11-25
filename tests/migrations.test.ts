@@ -35,6 +35,6 @@ describe("migrations, applied in order", () => {
     const { rows } = await pg.query<{ t: string }>(
       `select tablename as t from pg_tables where schemaname = 'public' order by tablename`,
     );
-    expect(rows.map((r) => r.t)).toEqual(["bookmarks", "books", "chunks", "conversations", "highlights", "messages", "reading_positions"]);
+    expect(rows.map((r) => r.t)).toEqual(["bookmarks", "books", "chunks", "conversations", "highlights", "invite_codes", "messages", "reading_positions", "referrals"]);
   });
 });

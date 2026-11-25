@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { publicEnv } from "@/lib/env";
 
-const PUBLIC_PATHS = ["/login", "/auth/"];
+const PUBLIC_PATHS = ["/login", "/auth/", "/i/"];
 // Routes that also accept machine-to-machine calls authenticate themselves
 // (secret header or session), so the middleware lets them through.
 const SELF_AUTHENTICATING = [/^\/api\/books\/[^/]+\/ingest$/];
