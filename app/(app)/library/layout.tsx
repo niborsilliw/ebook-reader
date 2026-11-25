@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
 import { signOut } from "../actions";
 
 export default function LibraryLayout({ children }: { children: React.ReactNode }) {
@@ -11,16 +11,11 @@ export default function LibraryLayout({ children }: { children: React.ReactNode 
         <Link href="/library" className="font-semibold">
           Nancy
         </Link>
-        <div className="flex items-center gap-2">
-          <Link href="/invite" className={buttonVariants({ variant: "ghost", className: "h-9 px-3" })}>
-            Invite
-          </Link>
-          <form action={signOut}>
-            <Button variant="outline" type="submit" className="h-9 px-3">
-              Sign out
-            </Button>
-          </form>
-        </div>
+        <form action={signOut}>
+          <Button variant="outline" type="submit" className="h-9 px-3">
+            Sign out
+          </Button>
+        </form>
       </header>
       <div className="flex-1">{children}</div>
     </>

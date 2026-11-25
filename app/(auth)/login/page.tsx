@@ -5,12 +5,12 @@ export const metadata = { title: "Sign in" };
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ next?: string; error?: string; invite?: string }>;
+  searchParams: Promise<{ next?: string; error?: string }>;
 }) {
-  const { next, error, invite } = await searchParams;
+  const { next, error } = await searchParams;
   return (
     <main className="flex min-h-dvh items-center justify-center p-4">
-      <LoginForm next={next} linkError={error === "link"} invite={invite && /^[a-z0-9]{6,12}$/.test(invite) ? invite : undefined} />
+      <LoginForm next={next} linkError={error === "link"} />
     </main>
   );
 }

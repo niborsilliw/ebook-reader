@@ -272,10 +272,10 @@ export type Database = {
           },
         ]
       }
-      invite_codes: {
-        Row: { code: string; created_at: string; owner_id: string }
-        Insert: { code: string; created_at?: string; owner_id: string }
-        Update: { code?: string; created_at?: string; owner_id?: string }
+      invites: {
+        Row: { created_at: string; email: string; invited_by: string | null; note: string | null }
+        Insert: { created_at?: string; email: string; invited_by?: string | null; note?: string | null }
+        Update: { created_at?: string; email?: string; invited_by?: string | null; note?: string | null }
         Relationships: []
       }
       messages: {
@@ -366,16 +366,17 @@ export type Database = {
           },
         ]
       }
-      referrals: {
-        Row: { code: string; created_at: string; invited_by: string | null; user_id: string }
-        Insert: { code: string; created_at?: string; invited_by?: string | null; user_id: string }
-        Update: { code?: string; created_at?: string; invited_by?: string | null; user_id?: string }
-        Relationships: []
-      }
     }
     Views: {
-      invite_tree: {
-        Row: { code: string | null; invited_by: string | null; joined_at: string | null; reader: string | null }
+      invite_list: {
+        Row: {
+          email: string | null
+          invited_at: string | null
+          invited_by: string | null
+          last_sign_in_at: string | null
+          note: string | null
+          signed_up_at: string | null
+        }
         Relationships: []
       }
     }
