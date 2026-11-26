@@ -47,6 +47,9 @@ const QUICK_PATTERNS = [
   /\bqu[ée]\s+(?:significa|quiere\s+decir)\b/i,
   /^(?:significado|definici[óo]n)\s+de\b/i,
   /^(?:define|traduce|traducir)\b/i,
+  // Catalan: "Què vol dir això?", "què significa…", "què és un taüt?"
+  /\bqu[èe]\s+(?:vol\s+dir|volen\s+dir|significa)\b/i,
+  /^qu[èe]\s+(?:és|són)\s+(?:una?\s+|el\s+|la\s+|l['’])?["'«“]?[\p{L}·-]+["'»”]?\s*\??$/iu,
   /^qu[ée]\s+(?:es|son)\s+(?:una?\s+|el\s+|la\s+)?["'«“]?[\p{L}-]+["'»”]?\s*\??$/iu,
 ];
 

@@ -2,7 +2,7 @@
 // TypeScript makes each language define every key that English does, with the
 // same arguments, so a missing translation fails the build.
 //
-// To add a language: copy `es`, translate, add it to `dictionaries` and
+// To add a language: copy `ca` or `es`, translate, add it to `dictionaries` and
 // `LANGS`, and the browser's language setting does the rest (lib/i18n/server.ts).
 
 const en = {
@@ -131,6 +131,7 @@ const en = {
 export type Strings = { [K in keyof typeof en]: Widen<(typeof en)[K]> };
 type Widen<T> = T extends (...args: infer A) => string ? (...args: A) => string : T extends string ? string : { [K in keyof T]: Widen<T[K]> };
 
+// Castellano
 const es: Strings = {
   signIn: "Entrar",
   signInLead: "Te enviaremos un enlace para entrar.",
@@ -247,13 +248,130 @@ const es: Strings = {
   answerFailed: "El asistente no pudo terminar la respuesta. Inténtalo de nuevo.",
 };
 
-export const LANGS = ["en", "es"] as const;
+// Català
+const ca: Strings = {
+  signIn: "Entra",
+  signInLead: "T’enviarem un enllaç per entrar.",
+  email: "Correu electrònic",
+  sendLink: "Envia l’enllaç",
+  sending: "S’està enviant…",
+  enterEmail: "Escriu el teu correu electrònic.",
+  inviteOnly: "De moment, a Nancy només s’hi entra per invitació. Si t’han convidat, fes servir el correu on va arribar la invitació.",
+  badLink: "Aquest enllaç no és vàlid o ha caducat. Demana’n un de nou.",
+  checkEmail: (email) => `Busca l’enllaç a ${email}.`,
+
+  library: "Biblioteca",
+  signOut: "Surt",
+  noBooks: "Encara no hi ha llibres. Puja un EPUB per començar.",
+  uploadEpub: "Puja un EPUB",
+  uploading: "S’està pujant…",
+  uploadFailed: "No s’ha pogut pujar",
+  onlyEpub: "Només s’admeten fitxers .epub.",
+  tooLarge: "Aquest fitxer passa de 50 MB.",
+  untitled: "Sense títol",
+  status: { uploaded: "A la cua", parsing: "Llegint", embedding: "Indexant", ready: "A punt", failed: "Error" },
+  indexingProgress: "Progrés de la indexació",
+  retry: "Torna-ho a provar",
+  retrying: "Tornant-ho a provar…",
+  retryFailed: "No s’ha pogut reiniciar la indexació.",
+  delete: "Esborra",
+  deleting: "S’està esborrant…",
+  cancel: "Cancel·la",
+  deleteFailed: "No s’ha pogut esborrar el llibre.",
+  deleteBookTitle: (title) => `Vols esborrar «${title}»?`,
+  deleteBookBody: "S’esborraran el fitxer, el punt de lectura i totes les converses sobre el llibre. No es pot desfer.",
+
+  openingBook: "S’està obrint el llibre…",
+  bookFailed: "No s’ha pogut obrir aquest llibre. Prova de tornar a carregar la pàgina.",
+  prevPage: "Pàgina anterior",
+  nextPage: "Pàgina següent",
+  contents: "Índex",
+  closeContents: "Tanca l’índex",
+  noToc: "Aquest llibre no té índex.",
+  toc: "Índex",
+  notes: "Notes",
+  assistant: "Assistent",
+  notesAndAssistant: "Notes i assistent",
+  closeNotesAndAssistant: "Tanca les notes i l’assistent",
+  contentsAndLibrary: "Índex i biblioteca",
+  bookmarkPage: "Marca aquesta pàgina",
+  unbookmarkPage: "Treu el punt de llibre d’aquesta pàgina",
+  alreadyBookmarked: "Aquesta pàgina ja està marcada",
+  highlightDeleted: "Subratllat esborrat",
+  bookmarkDeleted: "Punt de llibre esborrat",
+  undo: "Desfés",
+  selectionActions: "Accions de la selecció",
+  highlight: "Subratlla",
+  highlightIn: { yellow: "Subratlla en groc", green: "Subratlla en verd", blue: "Subratlla en blau", pink: "Subratlla en rosa" },
+  ask: "Pregunta",
+  askAboutThis: "Pregunta a l’assistent sobre això",
+  page: (n) => `Pàgina ${n}`,
+  backToLibrary: "← Biblioteca",
+  textSizes: { small: "Petit", default: "Normal", large: "Gran" },
+  textSize: (size) => `Mida del text: ${size}`,
+  changeTextSize: (size) => `Mida del text: ${size}. Canvia la mida`,
+
+  bookmarks: "Punts de llibre",
+  noBookmarks: "Encara no hi ha punts de llibre. Toca la cinta de la cantonada superior d’una pàgina per marcar-la.",
+  deleteBookmark: "Esborra el punt de llibre",
+  bookmark: "Punt de llibre",
+  highlights: "Subratllats",
+  noHighlights: "Encara no hi ha subratllats. Selecciona un text i tria un color; apareixerà aquí, ordenat per capítols.",
+  deleteHighlight: "Esborra el subratllat",
+  note: "Nota",
+  addNote: "Afegeix una nota…",
+  saving: "S’està desant…",
+  saved: "Desat",
+  couldntSave: "No s’ha pogut desar",
+  verified: "Verificat",
+  citeThis: "Cita",
+  citeBookTitle: "Copia una cita BibTeX del llibre en aquest passatge",
+
+  conversation: "Conversa",
+  newChat: "Nova",
+  newConversation: "Conversa nova",
+  closeAssistant: "Tanca l’assistent",
+  loadingConversation: "S’està carregant la conversa…",
+  loadConversationsFailed: (why) => `No s’han pogut carregar les teves converses: ${why}`,
+  loadConversationFailed: (why) => `No s’ha pogut carregar aquesta conversa: ${why}`,
+  stillIndexing: "Aquest llibre encara s’està indexant. L’assistent estarà disponible quan acabi.",
+  askingAbout: "Preguntes sobre:",
+  dontAskAboutPassage: "No preguntis sobre aquest passatge",
+  askQuestion: "Fes una pregunta sobre aquest llibre",
+  askPlaceholder: "Pregunta alguna cosa sobre aquest llibre…",
+  askPassagePlaceholder: "Pregunta sobre aquest passatge…",
+  stop: "Atura",
+  somethingWrong: "Alguna cosa ha fallat. Torna-ho a provar.",
+  searchingBook: "Buscant al llibre…",
+  searchingWeb: "Buscant a la web…",
+  copyReply: "Copia la resposta",
+  copied: "Copiat.",
+  copyFailed: "No s’ha pogut copiar la resposta.",
+  shareReply: "Comparteix la resposta",
+  shareFailed: "No s’ha pogut compartir la resposta.",
+  sources: "Fonts",
+  from: "De:",
+  fromTheWeb: "De la web:",
+  cite: "Cita",
+  citeHost: (host) => `Cita ${host} (BibTeX)`,
+  citePageTitle: "Copia una cita BibTeX d’aquesta pàgina",
+  bibCopied: "Cita BibTeX copiada",
+  bibDownloaded: (file) => `No s’ha pogut copiar, així que s’ha baixat com a ${file}`,
+
+  stillIndexingShort: "Aquest llibre encara s’està indexant.",
+  searchFailed: "Ara mateix no es pot buscar en aquest llibre. Torna-ho a provar.",
+  rateLimited: "El servei d’IA està saturat ara mateix (quota de Mistral). Torna-ho a provar d’aquí a un minut.",
+  badCredentials: "El servei d’IA ha rebutjat les credencials de l’aplicació. Revisa la clau i el pla de Mistral.",
+  answerFailed: "L’assistent no ha pogut acabar la resposta. Torna-ho a provar.",
+};
+
+export const LANGS = ["en", "es", "ca"] as const;
 export type Lang = (typeof LANGS)[number];
 export const isLang = (value: unknown): value is Lang => (LANGS as readonly unknown[]).includes(value);
 
 /** Set by ?lang=xx (see middleware.ts); wins over the browser's setting. */
 export const LANG_COOKIE = "lang";
 
-const dictionaries: Record<Lang, Strings> = { en, es };
+const dictionaries: Record<Lang, Strings> = { en, es, ca };
 
 export const strings = (lang: Lang): Strings => dictionaries[lang];
