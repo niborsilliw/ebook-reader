@@ -1,9 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
-import { useChat } from "@ai-sdk/react";
-import { DefaultChatTransport } from "ai";
-import type { ChatRequestBody, ChatUIMessage } from "@/lib/chat/types";
+import { useEffect, useRef, useState } from "react";
+import type { ChatUIMessage } from "@/lib/chat/types";
+import { useChat } from "@/lib/chat/use-chat";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { activityLabel } from "@/lib/chat/activity";
@@ -35,28 +34,14 @@ export function ChatThread(props: Props) {
   const callbacks = useRef(props);
   callbacks.current = props;
 
-  const transport = useMemo(
-    () =>
-      new DefaultChatTransport<ChatUIMessage>({
-        api: "/api/chat",
-        prepareSendMessagesRequest: ({ messages }) => {
-          const last = messages.at(-1);
-          const text = last?.parts.map((p) => (p.type === "text" ? p.text : "")).join("") ?? "";
-          const body: ChatRequestBody = {
-            bookId,
-            conversationId: conversationId.current,
-            message: text,
-            currentHref: getCurrentHref(),
-          };
-          return { body };
-        },
-      }),
-    [bookId, getCurrentHref],
-  );
-
-  const { messages, sendMessage, status, stop, error, clearError } = useChat<ChatUIMessage>({
-    messages: initialMessages,
-    transport,
+  const { messages, send, status, stop, error, clearError } = useChat({
+    initialMessages,
+    body: (message) => ({
+      bookId,
+      conversationId: conversationId.current,
+      message,
+      currentHref: getCurrentHref(),
+    }),
     onData: (part) => {
       if (part.type === "data-conversation") {
         conversationId.current = part.data.id;
@@ -79,7 +64,7 @@ export function ChatThread(props: Props) {
     clearError();
     setInput("");
     onPassageUsed?.();
-    void sendMessage({ text: withPassage(passage, text) });
+    void send(withPassage(passage, text));
   }
 
   return (
@@ -153,7 +138,7 @@ export function ChatThread(props: Props) {
         />
         <div className="mt-2 flex justify-end">
           {busy ? (
-            <Button type="button" variant="outline" size="sm" onClick={() => void stop()}>
+            <Button type="button" variant="outline" size="sm" onClick={stop}>
               Stop
             </Button>
           ) : (

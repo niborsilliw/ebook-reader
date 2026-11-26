@@ -23,14 +23,14 @@ This document covers what you need to take the codebase over: the stack, how the
 | Embeddings | Mistral `mistral-embed` (1024-d) | Called directly over HTTP in `lib/mistral.ts` |
 | Chat | Mistral `mistral-medium-latest` | Through the Vercel AI SDK (`ai` v7, `@ai-sdk/mistral`) |
 | Web search | Exa (`api.exa.ai/search`) | Plain `fetch` in `lib/rag/web-search.ts` |
-| Hosting | Vercel | **Every push to `main` deploys to production** (Git integration). Function limits assume the Hobby plan (60 s). |
+| Hosting | Vercel Pro, Frankfurt (`fra1`) | **Every push to `main` deploys to production** (Git integration). |
 | Rendering | epub.js 0.3 | In the browser only; the book is parsed separately on the server for indexing |
 
 Environment variables (see `.env.example`):
 
 | Variable | Used for |
 |---|---|
-| `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Browser and server clients (user-scoped, RLS applies) |
+| `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` | The server's user-scoped client (RLS applies); the anon key also rides on the browser's one storage upload |
 | `SUPABASE_SERVICE_ROLE_KEY` | Server-only admin client for the ingest worker; bypasses RLS |
 | `MISTRAL_API_KEY`, `MISTRAL_CHAT_MODEL`, `MISTRAL_EMBED_MODEL` | Embeddings and chat |
 | `EXA_API_KEY` | Web search. Unset = the companion has no web search |
@@ -54,9 +54,12 @@ lib/epub                  server-side EPUB parsing (TOC, spine, text, cover)
 lib/ingest                chunking and the resumable ingest worker
 lib/rag                   retrieval, prompts, web search
 lib/reader                chapter lockdown (CSP), fonts, tap selection, image pages, hidden scrollbars
-lib/chat                  client helpers: status line, links, emphasis
+lib/data                  server actions: every read or write the browser asks for after page load
+lib/chat                  the chat stream reader (use-chat.ts) and client helpers: status line, links, emphasis
 supabase/migrations       the schema, policies and SQL functions
 ```
+
+**The browser never talks to the database.** Pages load their data on the server; after that, every read or write goes through a typed server action in `lib/data/actions.ts`, running as the signed-in reader with RLS applying. The one direct call is the EPUB upload, a plain `PUT` to a one-time signed URL. So the browser ships no Supabase or AI library: the reader page is about 147 kB of JavaScript, most of it React and Next themselves. Keep it that way.
 
 `middleware.ts` refreshes the Supabase session on every request. Unauthenticated page requests go to `/login`, and API requests get a 401. The one exception is the ingest route, which authenticates itself (see below).
 
@@ -91,6 +94,7 @@ Every step is idempotent: parsing deletes existing chunks before inserting. Mist
 8. When the stream finishes, the assistant message is saved with the citations it actually used (`citationsFor`) and the model name.
 
 On the client (`components/assistant`):
+- `lib/chat/use-chat.ts` posts the question and reads the stream itself (about 100 lines): text deltas, `data-*` parts and the web-search tool start. The tests in `tests/chat-thread.test.tsx` replay recorded streams through it.
 - `[n]` markers render as superscript links that jump the reader to the passage, with "From: *Book*, Chapter" chips under the answer.
 - `*italics*` and `**bold**` are rendered without the marks.
 - A small copy mark under each finished reply copies its raw text ("Copied to clipboard."). With a mouse it appears only on hover; on touch screens it stays, faint.
