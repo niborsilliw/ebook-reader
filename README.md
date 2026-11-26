@@ -1,5 +1,7 @@
 # 📖 Nancy: V1.0 Tester Guide
 
+*Castellano: [README.es.md](README.es.md) · Català: [README.ca.md](README.ca.md)*
+
 **The Link:** https://nancyreader.com
 
 Nancy is invite-only for now: sign in with the email address Robin invited.
