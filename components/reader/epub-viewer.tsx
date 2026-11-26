@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useStrings } from "@/lib/i18n/client";
 import ePub, { EpubCFI, type Book, type Contents, type Location, type Rendition } from "epubjs";
 import type { TocEntry } from "@/lib/epub/parse";
 import type { Highlight } from "@/lib/notes/types";
@@ -141,6 +142,7 @@ export function EpubViewer({
   onFrameKeyDown,
   textScale = 1,
 }: Props) {
+  const t = useStrings();
   const rootRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const renditionRef = useRef<Rendition | null>(null);
@@ -862,8 +864,8 @@ export function EpubViewer({
       <div className="relative h-full w-full max-w-[38rem] min-w-0 py-8 sm:px-12 sm:py-12 min-[1000px]:max-w-[68rem] min-[1400px]:max-w-[72rem] min-[1700px]:max-w-[76rem]">
         <div ref={containerRef} className="h-full w-full overflow-hidden" />
         {status === "ready" && pageMarker}
-        {status === "loading" && <Overlay>Opening book…</Overlay>}
-        {status === "error" && <Overlay>This book couldn’t be opened. Try reloading the page.</Overlay>}
+        {status === "loading" && <Overlay>{t.openingBook}</Overlay>}
+        {status === "error" && <Overlay>{t.bookFailed}</Overlay>}
       </div>
       <PageButton side="next" disabled={status !== "ready" || edges.atEnd} onClick={() => turn("next")} />
     </div>
@@ -874,10 +876,11 @@ export function EpubViewer({
 // They show nothing, so the page stays calm; they grow to fill all the white
 // space beside the text, so a click anywhere in it turns the page.
 function PageButton({ side, disabled, onClick }: { side: "prev" | "next"; disabled: boolean; onClick: () => void }) {
+  const t = useStrings();
   return (
     <button
       type="button"
-      aria-label={side === "prev" ? "Previous page" : "Next page"}
+      aria-label={side === "prev" ? t.prevPage : t.nextPage}
       disabled={disabled}
       onClick={onClick}
       className="min-w-7 flex-1 focus-visible:outline-2 focus-visible:-outline-offset-4 focus-visible:outline-[#8c8478] disabled:pointer-events-none sm:min-w-20"

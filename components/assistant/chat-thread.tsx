@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useStrings } from "@/lib/i18n/client";
 import type { ChatUIMessage } from "@/lib/chat/types";
 import { useChat } from "@/lib/chat/use-chat";
 import { Button } from "@/components/ui/button";
@@ -25,6 +26,7 @@ type Props = {
 
 export function ChatThread(props: Props) {
   const { bookId, bookTitle, initialMessages, getCurrentHref, onCite, passage, onPassageUsed } = props;
+  const t = useStrings();
   const [input, setInput] = useState("");
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -89,8 +91,8 @@ export function ChatThread(props: Props) {
             ))}
           </ol>
         )}
-        {activity && <p className="mt-4 text-sm text-muted-foreground">{activity}</p>}
-        {error && <p className="mt-4 text-sm text-destructive">{errorMessage(error)}</p>}
+        {activity && <p className="mt-4 text-sm text-muted-foreground">{activity === "web" ? t.searchingWeb : t.searchingBook}</p>}
+        {error && <p className="mt-4 text-sm text-destructive">{errorMessage(error, t.somethingWrong)}</p>}
         <div ref={bottomRef} />
       </div>
 
@@ -104,14 +106,14 @@ export function ChatThread(props: Props) {
         {passage && (
           <div className="mb-2 flex items-start gap-2 rounded-md border-l-2 border-[#c9bfae] bg-muted/60 py-1.5 pr-1 pl-2.5">
             <p className="line-clamp-3 min-w-0 flex-1 font-serif text-sm italic text-[#4a453e]">
-              <span className="sr-only">Asking about: </span>
+              <span className="sr-only">{t.askingAbout} </span>
               {passage}
             </p>
             <button
               type="button"
               onClick={onPassageUsed}
-              aria-label="Don’t ask about this passage"
-              title="Don’t ask about this passage"
+              aria-label={t.dontAskAboutPassage}
+              title={t.dontAskAboutPassage}
               className="grid size-6 shrink-0 place-items-center rounded text-[#8c8478] hover:bg-black/5 hover:text-[#1f1d1a]"
             >
               ✕
@@ -119,7 +121,7 @@ export function ChatThread(props: Props) {
           </div>
         )}
         <label htmlFor="chat-input" className="sr-only">
-          Ask a question about this book
+          {t.askQuestion}
         </label>
         <Textarea
           id="chat-input"
@@ -131,7 +133,7 @@ export function ChatThread(props: Props) {
               submit();
             }
           }}
-          placeholder={passage ? "Ask about this passage…" : "Ask a question about this book…"}
+          placeholder={passage ? t.askPassagePlaceholder : t.askPlaceholder}
           rows={2}
           maxLength={4000}
           className="max-h-40 resize-none"
@@ -139,11 +141,11 @@ export function ChatThread(props: Props) {
         <div className="mt-2 flex justify-end">
           {busy ? (
             <Button type="button" variant="outline" size="sm" onClick={stop}>
-              Stop
+              {t.stop}
             </Button>
           ) : (
             <Button type="submit" size="sm" disabled={!input.trim()}>
-              Ask
+              {t.ask}
             </Button>
           )}
         </div>
@@ -154,12 +156,12 @@ export function ChatThread(props: Props) {
 
 // Errors from the route arrive as the response body ({ error }) or the
 // stream's generic message.
-function errorMessage(error: Error) {
+function errorMessage(error: Error, fallback: string) {
   try {
     const parsed = JSON.parse(error.message);
     if (typeof parsed?.error === "string") return parsed.error;
   } catch {
     // not JSON
   }
-  return error.message || "Something went wrong. Try again.";
+  return error.message || fallback;
 }

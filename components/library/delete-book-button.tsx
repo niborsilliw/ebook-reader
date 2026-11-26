@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useStrings } from "@/lib/i18n/client";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -19,13 +20,14 @@ export function DeleteBookButton({ bookId, title }: { bookId: string; title: str
   const [open, setOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const router = useRouter();
+  const t = useStrings();
 
   async function onDelete() {
     setDeleting(true);
     const res = await fetch(`/api/books/${bookId}`, { method: "DELETE" });
     setDeleting(false);
     if (!res.ok) {
-      toast.error("Could not delete the book.");
+      toast.error(t.deleteFailed);
       return;
     }
     setOpen(false);
@@ -37,19 +39,17 @@ export function DeleteBookButton({ bookId, title }: { bookId: string; title: str
       <DialogTrigger
         render={<Button variant="ghost" size="sm" className="h-7 px-2 text-xs text-muted-foreground" />}
       >
-        Delete
+        {t.delete}
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Delete “{title}”?</DialogTitle>
-          <DialogDescription>
-            This removes the book file, your reading position and all conversations about it. It can&apos;t be undone.
-          </DialogDescription>
+          <DialogTitle>{t.deleteBookTitle(title)}</DialogTitle>
+          <DialogDescription>{t.deleteBookBody}</DialogDescription>
         </DialogHeader>
         <DialogFooter>
-          <DialogClose render={<Button variant="outline" />}>Cancel</DialogClose>
+          <DialogClose render={<Button variant="outline" />}>{t.cancel}</DialogClose>
           <Button variant="destructive" onClick={onDelete} disabled={deleting}>
-            {deleting ? "Deleting…" : "Delete"}
+            {deleting ? t.deleting : t.delete}
           </Button>
         </DialogFooter>
       </DialogContent>

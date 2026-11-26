@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { getStrings } from "@/lib/i18n/server";
 import type { IngestStatus } from "@/lib/books";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
@@ -15,16 +16,9 @@ type Book = {
   ingest_error: string | null;
 };
 
-const STATUS_LABEL: Record<IngestStatus, string> = {
-  uploaded: "Queued",
-  parsing: "Reading",
-  embedding: "Indexing",
-  ready: "Ready",
-  failed: "Failed",
-};
-
-export function BookCard({ book, coverUrl }: { book: Book; coverUrl?: string }) {
-  const title = book.title ?? "Untitled";
+export async function BookCard({ book, coverUrl }: { book: Book; coverUrl?: string }) {
+  const t = await getStrings();
+  const title = book.title ?? t.untitled;
   const progress = book.chunk_count ? Math.round((book.embedded_count / book.chunk_count) * 100) : 0;
 
   return (
@@ -54,9 +48,9 @@ export function BookCard({ book, coverUrl }: { book: Book; coverUrl?: string }) 
       {book.status !== "ready" && (
         <div className="grid gap-1">
           <Badge variant={book.status === "failed" ? "destructive" : "secondary"} className="w-fit">
-            {STATUS_LABEL[book.status]}
+            {t.status[book.status]}
           </Badge>
-          {book.status === "embedding" && <Progress value={progress} aria-label="Indexing progress" />}
+          {book.status === "embedding" && <Progress value={progress} aria-label={t.indexingProgress} />}
           {book.status === "failed" && book.ingest_error && (
             <p className="line-clamp-2 text-xs text-destructive">{book.ingest_error}</p>
           )}

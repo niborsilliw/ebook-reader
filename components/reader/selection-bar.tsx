@@ -1,6 +1,7 @@
 "use client";
 
 import { useLayoutEffect, useRef, useState } from "react";
+import { useStrings } from "@/lib/i18n/client";
 import type { BookSelection } from "./epub-viewer";
 import { HIGHLIGHT_COLORS, type HighlightColor } from "@/lib/notes/colors";
 import { DialogueIcon } from "./icons";
@@ -22,6 +23,7 @@ type Props = {
  * touch screens, where the system's own copy/share menu appears above it.
  */
 export function SelectionBar({ selection, busy, onHighlight, onAsk }: Props) {
+  const t = useStrings();
   const ref = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState<{ left: number; top: number } | null>(null);
 
@@ -48,21 +50,21 @@ export function SelectionBar({ selection, busy, onHighlight, onAsk }: Props) {
     <div
       ref={ref}
       role="toolbar"
-      aria-label="Selection actions"
+      aria-label={t.selectionActions}
       style={pos ? { left: pos.left, top: pos.top } : { left: 0, top: 0, visibility: "hidden" }}
       className="fixed z-40 flex overflow-hidden rounded-full border border-[#e7e2d8] bg-[#1f1d1a] text-sm text-[#fbf9f4] shadow-lg"
       // Keep the selection: a mousedown here would otherwise clear it first.
       onMouseDown={(e) => e.preventDefault()}
     >
-      <div role="group" aria-label="Highlight" className="flex items-center gap-1 px-1.5">
+      <div role="group" aria-label={t.highlight} className="flex items-center gap-1 px-1.5">
         {HIGHLIGHT_COLORS.map((c) => (
           <button
             key={c.id}
             type="button"
             disabled={busy}
             onClick={() => onHighlight(c.id)}
-            aria-label={`Highlight ${c.label.toLowerCase()}`}
-            title={`Highlight ${c.label.toLowerCase()}`}
+            aria-label={t.highlightIn[c.id]}
+            title={t.highlightIn[c.id]}
             className="grid size-8 place-items-center rounded-full hover:bg-white/10 disabled:opacity-50"
           >
             <span aria-hidden className="size-4 rounded-full ring-1 ring-white/30" style={{ background: c.fill }} />
@@ -72,11 +74,11 @@ export function SelectionBar({ selection, busy, onHighlight, onAsk }: Props) {
       <button
         type="button"
         onClick={onAsk}
-        title="Ask the assistant about this"
+        title={t.askAboutThis}
         className="flex items-center gap-1.5 border-l border-white/15 pr-3.5 pl-3 font-serif hover:bg-white/10"
       >
         <DialogueIcon className="size-[14px] opacity-80" />
-        Ask
+        {t.ask}
       </button>
     </div>
   );

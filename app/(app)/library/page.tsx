@@ -1,13 +1,17 @@
 import { createClient } from "@/lib/supabase/server";
+import { getStrings } from "@/lib/i18n/server";
 import { BOOKS_BUCKET } from "@/lib/storage-paths";
 import { STALE_AFTER_MS, isIngesting } from "@/lib/books";
 import { BookCard } from "@/components/library/book-card";
 import { UploadButton } from "@/components/library/upload-button";
 import { StatusPoller } from "@/components/library/status-poller";
 
-export const metadata = { title: "Library" };
+export async function generateMetadata() {
+  return { title: (await getStrings()).library };
+}
 
 export default async function LibraryPage() {
+  const t = await getStrings();
   const supabase = await createClient();
   const { data: books, error } = await supabase
     .from("books")
@@ -32,13 +36,13 @@ export default async function LibraryPage() {
   return (
     <main className="mx-auto max-w-6xl px-4 py-6">
       <div className="mb-6 flex items-center justify-between gap-4">
-        <h1 className="text-2xl font-semibold">Library</h1>
+        <h1 className="text-2xl font-semibold">{t.library}</h1>
         <UploadButton />
       </div>
 
       {books.length === 0 ? (
         <div className="rounded-lg border border-dashed p-12 text-center text-muted-foreground">
-          No books yet. Upload an EPUB to get started.
+          {t.noBooks}
         </div>
       ) : (
         <ul className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">

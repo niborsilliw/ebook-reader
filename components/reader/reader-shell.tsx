@@ -1,6 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
+import { useStrings } from "@/lib/i18n/client";
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -21,12 +22,12 @@ import type { HighlightColor } from "@/lib/notes/colors";
 import { compareCfi } from "@/lib/notes/order";
 import { bookBibtex } from "@/lib/cite/bibtex";
 import { copyBib } from "@/lib/cite/copy";
-import { loadTextSize, nextTextSize, saveTextSize, textScale, textSizeLabel, type TextSize } from "@/lib/reader/text-size";
+import { loadTextSize, nextTextSize, saveTextSize, textScale, type TextSize } from "@/lib/reader/text-size";
 
 // epub.js touches `window` at import time.
 const EpubViewer = dynamic(() => import("./epub-viewer").then((m) => m.EpubViewer), {
   ssr: false,
-  loading: () => <ReaderMessage>Opening book…</ReaderMessage>,
+  loading: () => <OpeningBook />,
 });
 
 type Props = {
@@ -49,8 +50,8 @@ const BOOKMARK_LABEL_CHARS = 80;
 
 // The right drawer's tabs.
 const RIGHT_TABS = [
-  { id: "notes", label: "Notes", Icon: NibIcon },
-  { id: "assistant", label: "Assistant", Icon: DialogueIcon },
+  { id: "notes", Icon: NibIcon },
+  { id: "assistant", Icon: DialogueIcon },
 ] as const;
 type RightTab = (typeof RIGHT_TABS)[number]["id"];
 
@@ -70,6 +71,7 @@ export function ReaderShell({
   initialHighlights,
   initialBookmarks,
 }: Props) {
+  const t = useStrings();
   // Navigation is summoned, not resident: Contents & Library from the left,
   // Notes & Assistant from the right, one at a time, over the page.
   const [drawer, setDrawer] = useState<"left" | "right" | null>(null);
@@ -159,7 +161,7 @@ export function ReaderShell({
     const label = text.length > BOOKMARK_LABEL_CHARS ? `${text.slice(0, BOOKMARK_LABEL_CHARS - 1).trimEnd()}…` : text || here.chapter;
     const { data, error } = await db.addBookmark({ book_id: bookId, cfi: here.cfi, label });
     setSaving(false);
-    if (error?.code === "23505") return void toast("This page is already bookmarked");
+    if (error?.code === "23505") return void toast(t.alreadyBookmarked);
     if (error || !data) {
       console.error("save bookmark failed", error?.message);
       toast.error(`Couldn’t save the bookmark${error ? `: ${error.message}` : ""}`);
@@ -224,7 +226,7 @@ export function ReaderShell({
       },
       { chapter: h.chapter_title, text: h.text, note: h.note },
     );
-    void copyBib(entry);
+    void copyBib(entry, t);
   }
 
   // Deletes go through at once (the highlight disappears from the page too),
@@ -238,9 +240,9 @@ export function ReaderShell({
       toast.error(`Couldn’t delete the highlight: ${error.message}`);
       return;
     }
-    toast("Highlight deleted", {
+    toast(t.highlightDeleted, {
       action: {
-        label: "Undo",
+        label: t.undo,
         onClick: async () => {
           const { data, error } = await db.addHighlight({ ...h, book_id: bookId });
           if (error || !data) return void toast.error(`Couldn’t restore the highlight${error ? `: ${error.message}` : ""}`);
@@ -259,9 +261,9 @@ export function ReaderShell({
       toast.error(`Couldn’t delete the bookmark: ${error.message}`);
       return;
     }
-    toast("Bookmark deleted", {
+    toast(t.bookmarkDeleted, {
       action: {
-        label: "Undo",
+        label: t.undo,
         onClick: async () => {
           const { data, error } = await db.addBookmark({ ...b, book_id: bookId });
           if (error || !data) return void toast.error(`Couldn’t restore the bookmark${error ? `: ${error.message}` : ""}`);
@@ -340,20 +342,20 @@ export function ReaderShell({
       {/* Like a printed page: the chapter and a page number, nothing to chase. */}
       <footer className="flex h-9 shrink-0 items-center justify-between gap-4 px-6 font-serif text-xs text-[#8c8478]">
         <span className="truncate italic">{location?.chapter ?? ""}</span>
-        <span className="tabular-nums" aria-label={location?.page ? `Page ${location.page}` : undefined}>
+        <span className="tabular-nums" aria-label={location?.page ? t.page(location.page) : undefined}>
           {location?.page ?? ""}
         </span>
       </footer>
 
       <SummonControls hidden={drawer !== null} revealToken={revealControls} onOpen={(side) => openDrawer(side)} />
 
-      <Drawer id="contents-drawer" side="left" label="Contents and library" open={drawer === "left"} onClose={closeDrawer} className="max-w-[20rem]">
+      <Drawer id="contents-drawer" side="left" label={t.contentsAndLibrary} open={drawer === "left"} onClose={closeDrawer} className="max-w-[20rem]">
         <div className="shrink-0 border-b border-[#e7e2d8] px-3 pt-3 pb-4">
           <div className="flex items-center justify-between">
             <Button variant="ghost" size="sm" nativeButton={false} render={<Link href="/library" />}>
-              ← Library
+              {t.backToLibrary}
             </Button>
-            <Button variant="ghost" size="sm" onClick={closeDrawer} aria-label="Close contents">
+            <Button variant="ghost" size="sm" onClick={closeDrawer} aria-label={t.closeContents}>
               <CloseIcon className="size-4" />
             </Button>
           </div>
@@ -361,7 +363,7 @@ export function ReaderShell({
           {author && <p className="mt-0.5 px-2 text-xs tracking-wide text-[#6b655c] uppercase">{author}</p>}
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto">
-          <h2 className="px-5 pt-4 text-xs tracking-wide text-[#6b655c] uppercase">Contents</h2>
+          <h2 className="px-5 pt-4 text-xs tracking-wide text-[#6b655c] uppercase">{t.contents}</h2>
           <TocList
             toc={toc}
             current={location?.chapter ?? null}
@@ -373,9 +375,9 @@ export function ReaderShell({
         </div>
       </Drawer>
 
-      <Drawer id="notes-drawer" side="right" label="Notes and assistant" open={drawer === "right"} onClose={closeDrawer} className="max-w-[24rem]">
-        <div role="tablist" aria-label="Notes and assistant" className="flex h-12 shrink-0 items-center gap-1 border-b border-[#e7e2d8] px-3">
-          {RIGHT_TABS.map(({ id, label, Icon }) => (
+      <Drawer id="notes-drawer" side="right" label={t.notesAndAssistant} open={drawer === "right"} onClose={closeDrawer} className="max-w-[24rem]">
+        <div role="tablist" aria-label={t.notesAndAssistant} className="flex h-12 shrink-0 items-center gap-1 border-b border-[#e7e2d8] px-3">
+          {RIGHT_TABS.map(({ id, Icon }) => (
             <button
               key={id}
               type="button"
@@ -390,22 +392,22 @@ export function ReaderShell({
               }
             >
               <Icon className="size-[15px] opacity-70" />
-              {label}
+              {t[id]}
             </button>
           ))}
           <span className="flex-1" />
           <button
             type="button"
             onClick={cycleTextSize}
-            aria-label={`Text size: ${textSizeLabel(textSize)}. Change text size`}
-            title={`Text size: ${textSizeLabel(textSize)}`}
+            aria-label={t.changeTextSize(t.textSizes[textSize])}
+            title={t.textSize(t.textSizes[textSize])}
             className="grid h-8 w-9 place-items-center rounded-md font-serif text-[#6b655c] hover:bg-black/5 hover:text-[#1f1d1a]"
           >
             <span aria-hidden className={TEXT_SIZE_GLYPH[textSize]}>
               Aa
             </span>
           </button>
-          <Button variant="ghost" size="sm" onClick={closeDrawer} aria-label="Close notes and assistant">
+          <Button variant="ghost" size="sm" onClick={closeDrawer} aria-label={t.closeNotesAndAssistant}>
             <CloseIcon className="size-4" />
           </Button>
         </div>
@@ -446,6 +448,10 @@ export function readerShortcut(e: Pick<KeyboardEvent, "key" | "code" | "metaKey"
   if (!e.shiftKey && (e.key === "/" || e.code === "Slash")) return "assistant" as const;
   if (e.shiftKey && (e.key.toLowerCase() === "h" || e.code === "KeyH")) return "notes" as const;
   return null;
+}
+
+function OpeningBook() {
+  return <ReaderMessage>{useStrings().openingBook}</ReaderMessage>;
 }
 
 export function ReaderMessage({ children }: { children: React.ReactNode }) {

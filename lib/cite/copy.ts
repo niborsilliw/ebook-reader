@@ -1,5 +1,8 @@
 import { toast } from "sonner";
 import { downloadBib, type BibEntry } from "./bibtex";
+import type { Strings } from "@/lib/i18n/strings";
+
+type Words = Pick<Strings, "copied" | "bibCopied" | "bibDownloaded">;
 
 /**
  * Puts text on the clipboard and says so. Call it straight from the click:
@@ -7,7 +10,7 @@ import { downloadBib, type BibEntry } from "./bibtex";
  * false where the clipboard isn't available (an insecure origin, a refused
  * permission, an older browser).
  */
-export async function copyText(text: string, done = "Copied to clipboard.") {
+export async function copyText(text: string, done: string) {
   try {
     if (!navigator.clipboard?.writeText) throw new Error("no clipboard");
     await navigator.clipboard.writeText(text);
@@ -24,7 +27,7 @@ export async function copyText(text: string, done = "Copied to clipboard.") {
  * straight from the click, as both need the user's gesture. Resolves false
  * only when neither worked; a share the reader cancels counts as done.
  */
-export async function shareText(text: string, title?: string) {
+export async function shareText(text: string, done: string, title?: string) {
   if (typeof navigator.share === "function") {
     try {
       await navigator.share(title ? { title, text } : { text });
@@ -33,15 +36,15 @@ export async function shareText(text: string, title?: string) {
       if ((err as Error)?.name === "AbortError") return true;
     }
   }
-  return copyText(text);
+  return copyText(text, done);
 }
 
 /**
  * Puts a citation on the clipboard, ready to paste into a reference
  * manager or a .bib file; where that fails it is downloaded as a .bib file.
  */
-export async function copyBib(entry: BibEntry) {
-  if (await copyText(entry.bibtex, "BibTeX copied to clipboard")) return;
+export async function copyBib(entry: BibEntry, t: Words) {
+  if (await copyText(entry.bibtex, t.bibCopied)) return;
   downloadBib(entry);
-  toast(`Couldn’t copy, so it was downloaded as ${entry.key}.bib`);
+  toast(t.bibDownloaded(`${entry.key}.bib`));
 }

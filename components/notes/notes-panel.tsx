@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useStrings } from "@/lib/i18n/client";
 import { colorFill } from "@/lib/notes/colors";
 import { compareCfi, groupByChapter } from "@/lib/notes/order";
 import type { Bookmark, Highlight } from "@/lib/notes/types";
@@ -34,15 +35,16 @@ export function NotesPanel({
   onDeleteHighlight,
   onDeleteBookmark,
 }: Props) {
+  const t = useStrings();
   const chapters = useMemo(() => groupByChapter(highlights), [highlights]);
   const marks = useMemo(() => [...bookmarks].sort((a, b) => compareCfi(a.cfi, b.cfi)), [bookmarks]);
 
   return (
     <div className="flex h-full flex-col bg-[#fbf9f4]">
       <div className="min-h-0 flex-1 overflow-y-auto">
-        <Section title="Bookmarks">
+        <Section title={t.bookmarks}>
           {marks.length === 0 ? (
-            <Empty>No bookmarks yet. Tap the ribbon at the top corner of a page to mark it.</Empty>
+            <Empty>{t.noBookmarks}</Empty>
           ) : (
             <ul className="-mx-2">
               {marks.map((b) => (
@@ -51,20 +53,20 @@ export function NotesPanel({
                   active={activeId === b.id}
                   onActivate={() => onActivate({ id: b.id, cfi: b.cfi })}
                   onDelete={() => onDeleteBookmark(b)}
-                  deleteLabel="Delete bookmark"
+                  deleteLabel={t.deleteBookmark}
                 >
                   <span className="flex gap-2">
                     <RibbonIcon />
-                    <span className="line-clamp-2 min-w-0">{b.label || "Bookmark"}</span>
+                    <span className="line-clamp-2 min-w-0">{b.label || t.bookmark}</span>
                   </span>
                 </Item>
               ))}
             </ul>
           )}
         </Section>
-        <Section title="Highlights">
+        <Section title={t.highlights}>
           {chapters.length === 0 ? (
-            <Empty>No highlights yet. Select some text and pick a colour; it will appear here, grouped by chapter.</Empty>
+            <Empty>{t.noHighlights}</Empty>
           ) : (
             chapters.map((group) => (
               <div key={group.chapter} className="mb-4 last:mb-0">
@@ -78,7 +80,7 @@ export function NotesPanel({
                         active={active}
                         onActivate={() => onActivate({ id: h.id, cfi: h.cfi_range })}
                         onDelete={() => onDeleteHighlight(h)}
-                        deleteLabel="Delete highlight"
+                        deleteLabel={t.deleteHighlight}
                         below={
                           active ? (
                             <>
@@ -89,7 +91,7 @@ export function NotesPanel({
                             (h.note || h.verified) && (
                               <span className="mt-1 block px-2 pl-[19px] text-xs text-[#6b655c]">
                                 {h.note}
-                                {h.verified && <span className={h.note ? "ml-1.5 italic" : "italic"}>✓ Verified</span>}
+                                {h.verified && <span className={h.note ? "ml-1.5 italic" : "italic"}>✓ {t.verified}</span>}
                               </span>
                             )
                           )
@@ -167,6 +169,7 @@ function NoteField({
   focusToken: number;
   onSave: (id: string, note: string | null) => Promise<boolean>;
 }) {
+  const t = useStrings();
   const [draft, setDraft] = useState(highlight.note ?? "");
   const [status, setStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const ref = useRef<HTMLTextAreaElement>(null);
@@ -185,14 +188,14 @@ function NoteField({
   return (
     <div className="px-2 pt-1 pl-[19px]">
       <label className="sr-only" htmlFor={`note-${highlight.id}`}>
-        Note
+        {t.note}
       </label>
       <textarea
         ref={ref}
         id={`note-${highlight.id}`}
         rows={2}
         value={draft}
-        placeholder="Add a note…"
+        placeholder={t.addNote}
         onChange={(e) => {
           setDraft(e.target.value);
           setStatus("idle");
@@ -212,7 +215,7 @@ function NoteField({
         className="field-sizing-content block max-h-48 min-h-[2.5rem] w-full resize-none rounded-md border border-transparent bg-transparent px-2 py-1 font-serif text-sm text-[#1f1d1a] placeholder:text-[#a39b8e] focus:border-[#e7e2d8] focus:bg-white focus:outline-none"
       />
       <p aria-live="polite" className="h-4 px-2 text-[0.7rem] text-[#8c8478]">
-        {status === "saving" ? "Saving…" : status === "saved" ? "Saved" : status === "error" ? "Couldn’t save" : ""}
+        {status === "saving" ? t.saving : status === "saved" ? t.saved : status === "error" ? t.couldntSave : ""}
       </p>
     </div>
   );
@@ -229,6 +232,7 @@ function AcademicRow({
   onSetVerified: (id: string, verified: boolean) => void;
   onCite: (h: Highlight) => void;
 }) {
+  const t = useStrings();
   return (
     <div className="flex items-center justify-between px-2 pl-[27px] text-xs text-[#6b655c]">
       <label className="flex cursor-pointer items-center gap-1.5 italic">
@@ -238,15 +242,15 @@ function AcademicRow({
           onChange={(e) => onSetVerified(highlight.id, e.target.checked)}
           className="size-3.5 accent-[#6b655c]"
         />
-        Verified
+        {t.verified}
       </label>
       <button
         type="button"
         onClick={() => onCite(highlight)}
-        title="Copy a BibTeX citation for the book at this passage"
+        title={t.citeBookTitle}
         className="rounded px-1.5 py-0.5 italic underline-offset-2 hover:text-[#1f1d1a] hover:underline"
       >
-        Cite this
+        {t.citeThis}
       </button>
     </div>
   );

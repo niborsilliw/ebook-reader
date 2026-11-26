@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { LanguageProvider } from "@/lib/i18n/client";
+import { getLang } from "@/lib/i18n/server";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -10,13 +12,14 @@ export const metadata: Metadata = {
   description: "EPUB reader with a research assistant",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const lang = await getLang();
   return (
-    <html lang="en">
+    <html lang={lang}>
       <head>
         <link
           rel="preload"
@@ -27,8 +30,10 @@ export default function RootLayout({
         />
       </head>
       <body className="antialiased">
-        <TooltipProvider>{children}</TooltipProvider>
-        <Toaster />
+        <LanguageProvider lang={lang}>
+          <TooltipProvider>{children}</TooltipProvider>
+          <Toaster />
+        </LanguageProvider>
       </body>
     </html>
   );

@@ -20,8 +20,13 @@ export function promptMode(value?: string | null): PromptMode {
  * answers from the book's excerpts alone, so it never does.
  */
 export function systemPrompt(bookTitle: string, mode: PromptMode = DEFAULT_PROMPT_MODE, { webSearch = false } = {}) {
-  return mode === "grounded" ? groundedPrompt(bookTitle) : companionPrompt(bookTitle, webSearch);
+  const prompt = mode === "grounded" ? groundedPrompt(bookTitle) : companionPrompt(bookTitle, webSearch);
+  return `${prompt}\n\n${LANGUAGE_GUIDANCE}`;
 }
+
+// Nancy speaks the reader's language, whatever the book's.
+const LANGUAGE_GUIDANCE =
+  "Reply in the language the reader writes in, even when the book is in another language. Quote the book in its own language.";
 
 const WEB_SEARCH_GUIDANCE = `
 

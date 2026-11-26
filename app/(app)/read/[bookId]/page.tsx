@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { getStrings } from "@/lib/i18n/server";
 import { createClient } from "@/lib/supabase/server";
 import { BOOKS_BUCKET } from "@/lib/storage-paths";
 import type { TocEntry } from "@/lib/epub/parse";
@@ -43,7 +44,7 @@ export default async function ReadPage({ params }: { params: Promise<{ bookId: s
   return (
     <ReaderShell
       bookId={book.id}
-      title={book.title ?? "Untitled"}
+      title={book.title ?? (await getStrings()).untitled}
       author={book.author}
       publication={{ publisher: book.publisher, published: book.published, isbn: book.isbn }}
       fileUrl={signed.signedUrl}

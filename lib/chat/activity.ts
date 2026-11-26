@@ -17,11 +17,11 @@ export function isSearchingWeb(message: ChatUIMessage | undefined) {
  * model decides whether it needs a web search, until the search or the
  * answer itself begins.
  */
-export function activityLabel(status: ChatStatus, last: ChatUIMessage | undefined) {
-  if (status === "submitted") return "Searching the book…";
+export function activityLabel(status: ChatStatus, last: ChatUIMessage | undefined): "book" | "web" | null {
+  if (status === "submitted") return "book";
   if (status !== "streaming") return null;
-  if (isSearchingWeb(last)) return "Searching the web…";
-  if (last?.role === "assistant" && !hasText(last)) return "Searching the book…";
+  if (isSearchingWeb(last)) return "web";
+  if (last?.role === "assistant" && !hasText(last)) return "book";
   return null;
 }
 

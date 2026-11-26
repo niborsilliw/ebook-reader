@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useStrings } from "@/lib/i18n/client";
 import { cn } from "@/lib/utils";
 import { BooksIcon, DialogueIcon } from "./icons";
 
@@ -11,8 +12,6 @@ const TAP_REVEAL_MS = 3500;
 const INTRO_MS = 4000;
 
 type Side = "left" | "right";
-
-const LABEL: Record<Side, string> = { left: "Contents and library", right: "Notes and assistant" };
 
 /**
  * The drawers' buttons, one in each top corner: always there, faint at rest
@@ -28,6 +27,7 @@ const LABEL: Record<Side, string> = { left: "Contents and library", right: "Note
  * - For the keyboard: the buttons come up when focused; the shell has shortcuts.
  */
 export function SummonControls({ hidden, revealToken, onOpen }: { hidden: boolean; revealToken: number; onOpen: (side: Side) => void }) {
+  const t = useStrings();
   const [intro, setIntro] = useState(true);
   useEffect(() => {
     const t = setTimeout(() => setIntro(false), INTRO_MS);
@@ -68,8 +68,8 @@ export function SummonControls({ hidden, revealToken, onOpen }: { hidden: boolea
           >
             <button
               type="button"
-              aria-label={LABEL[side]}
-              title={LABEL[side]}
+              aria-label={side === "left" ? t.contentsAndLibrary : t.notesAndAssistant}
+              title={side === "left" ? t.contentsAndLibrary : t.notesAndAssistant}
               onClick={() => onOpen(side)}
               className={cn(
                 "pointer-events-auto grid size-10 place-items-center rounded-full border text-[#6b655c] transition-[opacity,background-color,border-color] duration-300 hover:bg-black/[0.06] hover:text-[#1f1d1a] focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-[#8c8478]",

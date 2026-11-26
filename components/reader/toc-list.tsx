@@ -1,11 +1,13 @@
 "use client";
 
 import type { TocEntry } from "@/lib/epub/parse";
+import { useStrings } from "@/lib/i18n/client";
 
 export function TocList({ toc, current, onSelect }: { toc: TocEntry[]; current: string | null; onSelect: (href: string) => void }) {
-  if (toc.length === 0) return <p className="px-5 py-3 font-serif text-sm text-[#6b655c]">This book has no table of contents.</p>;
+  const t = useStrings();
+  if (toc.length === 0) return <p className="px-5 py-3 font-serif text-sm text-[#6b655c]">{t.noToc}</p>;
   return (
-    <nav aria-label="Table of contents">
+    <nav aria-label={t.toc}>
       <ol className="py-2">
         {toc.map((entry, i) => {
           const here = entry.title === current;

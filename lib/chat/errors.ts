@@ -1,4 +1,5 @@
 import { MistralError } from "@/lib/mistral";
+import { strings, type Strings } from "@/lib/i18n/strings";
 
 type WithStatus = { statusCode?: number; status?: number | null; lastError?: unknown; cause?: unknown };
 
@@ -12,14 +13,14 @@ export function upstreamStatus(err: unknown, depth = 0): number | null {
 }
 
 /** A message safe to show the reader. Never includes upstream response bodies. */
-export function chatErrorMessage(err: unknown): string {
+export function chatErrorMessage(err: unknown, t: Strings = strings("en")): string {
   switch (upstreamStatus(err)) {
     case 429:
-      return "The AI service is rate-limited right now (Mistral quota). Try again in a minute.";
+      return t.rateLimited;
     case 401:
     case 403:
-      return "The AI service rejected this app’s credentials. Check the Mistral API key and plan.";
+      return t.badCredentials;
     default:
-      return "The assistant couldn't finish that answer. Try again.";
+      return t.answerFailed;
   }
 }

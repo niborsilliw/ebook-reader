@@ -8,21 +8,21 @@ const text = (t: string) => ({ type: "text", text: t });
 
 describe("the thread's status line", () => {
   it("says it is searching the book until the reply starts", () => {
-    expect(activityLabel("submitted", { id: "u", role: "user", parts: [text("Who is Arendt?")] } as ChatUIMessage)).toBe("Searching the book…");
+    expect(activityLabel("submitted", { id: "u", role: "user", parts: [text("Who is Arendt?")] } as ChatUIMessage)).toBe("book");
   });
 
   it("says it is searching the web from the search request until the answer starts", () => {
     for (const state of ["input-streaming", "input-available", "output-available"]) {
-      expect(activityLabel("streaming", assistant({ type: "step-start" }, search(state)))).toBe("Searching the web…");
+      expect(activityLabel("streaming", assistant({ type: "step-start" }, search(state)))).toBe("web");
     }
-    expect(activityLabel("streaming", assistant(search("output-available"), { type: "step-start" }, text("")))).toBe("Searching the web…");
+    expect(activityLabel("streaming", assistant(search("output-available"), { type: "step-start" }, text("")))).toBe("web");
     expect(activityLabel("streaming", assistant(search("output-available"), { type: "step-start" }, text("Hannah")))).toBeNull();
   });
 
   it("keeps saying it is searching the book after the reply starts, until a search or the answer begins", () => {
-    expect(activityLabel("streaming", assistant({ type: "data-citations", data: [] }))).toBe("Searching the book…");
-    expect(activityLabel("streaming", assistant({ type: "data-citations", data: [] }, { type: "step-start" }, text("")))).toBe("Searching the book…");
-    expect(activityLabel("streaming", assistant({ type: "data-citations", data: [] }, { type: "step-start" }, search("input-streaming")))).toBe("Searching the web…");
+    expect(activityLabel("streaming", assistant({ type: "data-citations", data: [] }))).toBe("book");
+    expect(activityLabel("streaming", assistant({ type: "data-citations", data: [] }, { type: "step-start" }, text("")))).toBe("book");
+    expect(activityLabel("streaming", assistant({ type: "data-citations", data: [] }, { type: "step-start" }, search("input-streaming")))).toBe("web");
   });
 
   it("says nothing while an answer streams without a search, or once it is done", () => {

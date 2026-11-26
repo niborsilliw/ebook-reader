@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { useStrings } from "@/lib/i18n/client";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { publicEnv } from "@/lib/env";
@@ -11,10 +12,11 @@ export function UploadButton() {
   const inputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const router = useRouter();
+  const t = useStrings();
 
   async function upload(file: File) {
-    if (!/\.epub$/i.test(file.name)) return toast.error("Only .epub files are supported.");
-    if (file.size > MAX_UPLOAD_BYTES) return toast.error("That file is larger than 50 MB.");
+    if (!/\.epub$/i.test(file.name)) return toast.error(t.onlyEpub);
+    if (file.size > MAX_UPLOAD_BYTES) return toast.error(t.tooLarge);
 
     setUploading(true);
     let bookId: string | undefined;
@@ -25,7 +27,7 @@ export function UploadButton() {
         body: JSON.stringify({ fileName: file.name, fileSize: file.size }),
       });
       const body = await res.json();
-      if (!res.ok) throw new Error(body.error ?? "Upload failed");
+      if (!res.ok) throw new Error(body.error ?? t.uploadFailed);
       bookId = body.bookId;
 
       // Straight to storage with the one-time URL, as the Supabase client sends it.
@@ -37,14 +39,14 @@ export function UploadButton() {
         headers: { apikey: publicEnv.supabaseAnonKey, "x-upsert": "false" },
         body: form,
       });
-      if (!put.ok) throw new Error((await put.json().catch(() => null))?.message ?? "Upload failed");
+      if (!put.ok) throw new Error((await put.json().catch(() => null))?.message ?? t.uploadFailed);
 
       toast.success(`Uploaded “${file.name}”`);
       await startIngest(body.bookId);
     } catch (err) {
       // Don't leave a book row with no file behind it.
       if (bookId) await fetch(`/api/books/${bookId}`, { method: "DELETE" }).catch(() => {});
-      toast.error(err instanceof Error ? err.message : "Upload failed");
+      toast.error(err instanceof Error ? err.message : t.uploadFailed);
     } finally {
       setUploading(false);
       if (inputRef.current) inputRef.current.value = "";
@@ -65,7 +67,7 @@ export function UploadButton() {
         }}
       />
       <Button onClick={() => inputRef.current?.click()} disabled={uploading}>
-        {uploading ? "Uploading…" : "Upload EPUB"}
+        {uploading ? t.uploading : t.uploadEpub}
       </Button>
     </>
   );

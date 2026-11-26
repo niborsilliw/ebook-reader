@@ -1,6 +1,7 @@
 "use client";
 
 import { cn } from "@/lib/utils";
+import { useStrings } from "@/lib/i18n/client";
 
 /**
  * A ribbon hanging from the top of the page, beside the text. Only its tip
@@ -8,7 +9,8 @@ import { cn } from "@/lib/utils";
  * the ribbon marker in a hardback.
  */
 export function BookmarkRibbon({ marked, busy, onToggle }: { marked: boolean; busy: boolean; onToggle: () => void }) {
-  const label = marked ? "Remove bookmark from this page" : "Bookmark this page";
+  const t = useStrings();
+  const label = marked ? t.unbookmarkPage : t.bookmarkPage;
   return (
     <button
       type="button"

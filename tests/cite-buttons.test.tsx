@@ -7,6 +7,7 @@ import { MessageView } from "@/components/assistant/message-view";
 import type { Highlight } from "@/lib/notes/types";
 import type { ChatUIMessage } from "@/lib/chat/types";
 import { copyBib } from "@/lib/cite/copy";
+import { strings } from "@/lib/i18n/strings";
 
 const toast = vi.hoisted(() => Object.assign(vi.fn(), { success: vi.fn(), error: vi.fn() }));
 vi.mock("sonner", () => ({ toast }));
@@ -116,7 +117,7 @@ describe("copyBib", () => {
 
   it("downloads the .bib instead when the clipboard refuses", async () => {
     clipboard!.writeText.mockRejectedValueOnce(new Error("NotAllowedError"));
-    await copyBib(entry);
+    await copyBib(entry, strings("en"));
     expect(saved?.name).toBe("camus1989stranger.bib");
     expect(await saved!.text).toBe(entry.bibtex);
     expect(toast).toHaveBeenCalledWith("Couldn’t copy, so it was downloaded as camus1989stranger.bib");
@@ -125,7 +126,7 @@ describe("copyBib", () => {
 
   it("downloads it when there is no clipboard at all", async () => {
     clipboard = undefined;
-    await copyBib(entry);
+    await copyBib(entry, strings("en"));
     expect(saved?.name).toBe("camus1989stranger.bib");
   });
 });

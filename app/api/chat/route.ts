@@ -12,6 +12,8 @@ import { wantsSearch, webPagesOf, webSearchOptions } from "@/lib/rag/web-search"
 import type { WebPage } from "@/lib/cite/bibtex";
 import type { ChatUIMessage } from "@/lib/chat/types";
 import { chatErrorMessage, upstreamStatus } from "@/lib/chat/errors";
+import { strings } from "@/lib/i18n/strings";
+import { langFrom } from "@/lib/i18n/server";
 import { PASSAGE_MAX_CHARS, splitPassage } from "@/lib/chat/passage";
 
 export const maxDuration = 60;
@@ -30,6 +32,7 @@ const Body = z.object({
 });
 
 export async function POST(request: Request) {
+  const t = strings(langFrom(request.headers.get("accept-language")));
   const supabase = await createClient();
   if (!(await getUserId(supabase))) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
@@ -44,7 +47,7 @@ export async function POST(request: Request) {
   const { data: book } = await supabase.from("books").select("id, title, status").eq("id", bookId).maybeSingle();
   if (!book) return NextResponse.json({ error: "Not found" }, { status: 404 });
   if (book.status !== "ready") {
-    return NextResponse.json({ error: "This book is still being indexed." }, { status: 409 });
+    return NextResponse.json({ error: t.stillIndexingShort }, { status: 409 });
   }
   const bookTitle = book.title ?? "this book";
 
@@ -96,7 +99,7 @@ export async function POST(request: Request) {
     console.error("chat retrieval failed", (err as Error).message);
     const rateLimited = upstreamStatus(err) === 429;
     return NextResponse.json(
-      { error: rateLimited ? chatErrorMessage(err) : "Couldn't search this book right now. Try again." },
+      { error: rateLimited ? chatErrorMessage(err, t) : t.searchFailed },
       { status: rateLimited ? 503 : 502 },
     );
   }
@@ -173,7 +176,7 @@ export async function POST(request: Request) {
     },
     onError: (err) => {
       console.error("chat stream failed", err instanceof Error ? err.message : err);
-      return chatErrorMessage(err);
+      return chatErrorMessage(err, t);
     },
   });
 

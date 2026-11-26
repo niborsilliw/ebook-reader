@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useStrings } from "@/lib/i18n/client";
 import { listConversations, listMessages } from "@/lib/data/actions";
 import type { Citation } from "@/lib/rag/types";
 import type { WebPage } from "@/lib/cite/bibtex";
@@ -29,6 +30,7 @@ type Thread = { key: string; conversationId: string | null; messages: ChatUIMess
 const newThread = (): Thread => ({ key: crypto.randomUUID(), conversationId: null, messages: [] });
 
 export function AssistantPanel({ bookId, bookTitle, ready, getCurrentHref, onCite, onClose, passage, onPassageUsed }: Props) {
+  const t = useStrings();
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [thread, setThread] = useState<Thread>(newThread);
   const [loadingThread, setLoadingThread] = useState(false);
@@ -39,12 +41,12 @@ export function AssistantPanel({ bookId, bookTitle, ready, getCurrentHref, onCit
     if (error) {
       // Keep whatever list we had rather than blanking it.
       console.error("load conversations failed", error.message);
-      setLoadError(`Couldn’t load your conversations: ${error.message}`);
+      setLoadError(t.loadConversationsFailed(error.message));
       return;
     }
     setLoadError(null);
     setConversations(data ?? []);
-  }, [bookId]);
+  }, [bookId, t]);
 
   useEffect(() => {
     void loadConversations();
@@ -58,7 +60,7 @@ export function AssistantPanel({ bookId, bookTitle, ready, getCurrentHref, onCit
     if (error) {
       // Stay on the current thread instead of opening an empty one.
       console.error("load messages failed", error.message);
-      setLoadError(`Couldn’t load this conversation: ${error.message}`);
+      setLoadError(t.loadConversationFailed(error.message));
       return;
     }
     setLoadError(null);
@@ -94,7 +96,7 @@ export function AssistantPanel({ bookId, bookTitle, ready, getCurrentHref, onCit
     <div className="flex h-full flex-col">
       <div className="flex h-12 shrink-0 items-center gap-2 border-b px-3">
         <label className="sr-only" htmlFor="thread-picker">
-          Conversation
+          {t.conversation}
         </label>
         <select
           id="thread-picker"
@@ -103,18 +105,18 @@ export function AssistantPanel({ bookId, bookTitle, ready, getCurrentHref, onCit
           onChange={(e) => void openConversation(e.target.value)}
           disabled={!ready}
         >
-          <option value="">New conversation</option>
+          <option value="">{t.newConversation}</option>
           {conversations.map((c) => (
             <option key={c.id} value={c.id}>
-              {c.title ?? "Untitled"}
+              {c.title ?? t.untitled}
             </option>
           ))}
         </select>
         <Button variant="outline" size="sm" onClick={() => setThread(newThread())} disabled={!ready}>
-          New chat
+          {t.newChat}
         </Button>
         {onClose && (
-          <Button variant="ghost" size="sm" onClick={onClose} aria-label="Close assistant">
+          <Button variant="ghost" size="sm" onClick={onClose} aria-label={t.closeAssistant}>
             ✕
           </Button>
         )}
@@ -123,11 +125,9 @@ export function AssistantPanel({ bookId, bookTitle, ready, getCurrentHref, onCit
       {loadError && <p className="border-b px-4 py-2 text-sm text-destructive">{loadError}</p>}
 
       {!ready ? (
-        <p className="p-4 text-sm text-muted-foreground">
-          This book is still being indexed. The assistant will be available when it’s ready.
-        </p>
+        <p className="p-4 text-sm text-muted-foreground">{t.stillIndexing}</p>
       ) : loadingThread ? (
-        <p className="p-4 text-sm text-muted-foreground">Loading conversation…</p>
+        <p className="p-4 text-sm text-muted-foreground">{t.loadingConversation}</p>
       ) : (
         <ChatThread
           key={thread.key}

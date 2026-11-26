@@ -1,6 +1,7 @@
 "use client";
 
 import type { WebSource } from "@/lib/chat/links";
+import { useStrings } from "@/lib/i18n/client";
 import { webBibtex, type WebPage } from "@/lib/cite/bibtex";
 import { copyBib } from "@/lib/cite/copy";
 import type { Citation } from "@/lib/rag/types";
@@ -27,6 +28,7 @@ export function CitationChips({
   bookTitle: string;
   onCite: (spineHref: string) => void;
 }) {
+  const t = useStrings();
   const groups = new Map<string, { href: string; chapter: string | null; numbers: number[] }>();
   for (const c of citations) {
     const key = `${c.spine_href}\u0000${c.chapter_title ?? ""}`;
@@ -36,7 +38,7 @@ export function CitationChips({
   }
 
   return (
-    <ul className="flex flex-wrap gap-1.5" aria-label="Sources">
+    <ul className="flex flex-wrap gap-1.5" aria-label={t.sources}>
       {[...groups.values()].map((g) => (
         <li key={`${g.href}-${g.numbers.join(",")}`}>
           <button
@@ -44,7 +46,7 @@ export function CitationChips({
             onClick={() => onCite(g.href)}
             className={CHIP}
           >
-            <span className="tabular-nums">[{g.numbers.join(", ")}]</span> From: <span className="italic">{bookTitle}</span>
+            <span className="tabular-nums">[{g.numbers.join(", ")}]</span> {t.from} <span className="italic">{bookTitle}</span>
             {g.chapter ? `, ${g.chapter}` : ""}
           </button>
         </li>
@@ -52,16 +54,16 @@ export function CitationChips({
       {webSources.map((s) => (
         <li key={s.href} className="flex items-center gap-1">
           <a href={s.href} target="_blank" rel="noopener noreferrer" title={s.href} className={`${CHIP} inline-block`}>
-            <span className="italic">[{s.mark}]</span> From the web: {s.host}
+            <span className="italic">[{s.mark}]</span> {t.fromTheWeb} {s.host}
           </a>
           <button
             type="button"
-            onClick={() => void copyBib(webBibtex(pageFor(s.href, webPages), new Date()))}
-            aria-label={`Cite ${s.host} (BibTeX)`}
-            title="Copy a BibTeX citation for this page"
+            onClick={() => void copyBib(webBibtex(pageFor(s.href, webPages), new Date()), t)}
+            aria-label={t.citeHost(s.host)}
+            title={t.citePageTitle}
             className="rounded px-1 text-xs text-muted-foreground italic underline-offset-2 hover:text-foreground hover:underline"
           >
-            Cite
+            {t.cite}
           </button>
         </li>
       ))}

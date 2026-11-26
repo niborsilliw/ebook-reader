@@ -1,8 +1,10 @@
 import Link from "next/link";
+import { getStrings } from "@/lib/i18n/server";
 import { Button } from "@/components/ui/button";
 import { signOut } from "../actions";
 
-export default function LibraryLayout({ children }: { children: React.ReactNode }) {
+export default async function LibraryLayout({ children }: { children: React.ReactNode }) {
+  const t = await getStrings();
   return (
     <>
       {/* Pinned, so Sign out stays in reach on a phone, where the shelf is a
@@ -13,7 +15,7 @@ export default function LibraryLayout({ children }: { children: React.ReactNode 
         </Link>
         <form action={signOut}>
           <Button variant="outline" type="submit" className="h-9 px-3">
-            Sign out
+            {t.signOut}
           </Button>
         </form>
       </header>

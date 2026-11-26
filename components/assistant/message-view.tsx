@@ -1,6 +1,7 @@
 "use client";
 
 import { Fragment } from "react";
+import { useStrings } from "@/lib/i18n/client";
 import type { ChatUIMessage } from "@/lib/chat/types";
 import type { Citation } from "@/lib/rag/types";
 import { citedNumbers } from "@/lib/rag/prompt";
@@ -75,15 +76,16 @@ const REPLY_ACTION =
  * they stay, small and faint.
  */
 function ReplyActions({ text, bookTitle }: { text: string; bookTitle: string }) {
+  const t = useStrings();
   return (
     <div className="-my-1 -ml-1 flex gap-1 justify-self-start">
       <button
         type="button"
         onClick={async () => {
-          if (!(await copyText(plainReply(text)))) toast.error("Couldn’t copy this reply.");
+          if (!(await copyText(plainReply(text), t.copied))) toast.error(t.copyFailed);
         }}
-        aria-label="Copy reply"
-        title="Copy reply"
+        aria-label={t.copyReply}
+        title={t.copyReply}
         className={REPLY_ACTION}
       >
         <CopyIcon className="size-3.5" />
@@ -91,10 +93,10 @@ function ReplyActions({ text, bookTitle }: { text: string; bookTitle: string }) 
       <button
         type="button"
         onClick={async () => {
-          if (!(await shareText(plainReply(text), bookTitle))) toast.error("Couldn’t share this reply.");
+          if (!(await shareText(plainReply(text), t.copied, bookTitle))) toast.error(t.shareFailed);
         }}
-        aria-label="Share reply"
-        title="Share reply"
+        aria-label={t.shareReply}
+        title={t.shareReply}
         className={REPLY_ACTION}
       >
         <ShareIcon className="size-3.5" />

@@ -43,6 +43,11 @@ const QUICK_PATTERNS = [
   /^what(?:'s|’s|\s+is)\s+(?:this|that)\s+(?:word|phrase|term)\b/i,
   /\bin\s+(?:plain\s+)?english\b/i,
   /^(?:what|meaning)\s*\??$/i,
+  // Spanish: "¿Qué significa esto?", "qué quiere decir…", "significado de…", "¿qué es un féretro?"
+  /\bqu[ée]\s+(?:significa|quiere\s+decir)\b/i,
+  /^(?:significado|definici[óo]n)\s+de\b/i,
+  /^(?:define|traduce|traducir)\b/i,
+  /^qu[ée]\s+(?:es|son)\s+(?:una?\s+|el\s+|la\s+)?["'«“]?[\p{L}-]+["'»”]?\s*\??$/iu,
 ];
 
 /**
@@ -50,7 +55,7 @@ const QUICK_PATTERNS = [
  * answer in a sentence or two, not a reading of the book.
  */
 export function isQuickQuestion(question: string): boolean {
-  const q = question.trim();
+  const q = question.trim().replace(/^¿/, "");
   if (!q || q.split(/\s+/).length > QUICK_MAX_WORDS) return false;
   return QUICK_PATTERNS.some((p) => p.test(q));
 }

@@ -2,9 +2,9 @@
 // in this browser.
 
 export const TEXT_SIZES = [
-  { id: "small", label: "Small", scale: 0.9 },
-  { id: "default", label: "Default", scale: 1 },
-  { id: "large", label: "Large", scale: 1.1 },
+  { id: "small", scale: 0.9 },
+  { id: "default", scale: 1 },
+  { id: "large", scale: 1.1 },
 ] as const;
 
 export type TextSize = (typeof TEXT_SIZES)[number]["id"];
@@ -12,8 +12,6 @@ export type TextSize = (typeof TEXT_SIZES)[number]["id"];
 const KEY = "reader:text-size";
 
 export const textScale = (size: TextSize) => TEXT_SIZES.find((s) => s.id === size)!.scale;
-export const textSizeLabel = (size: TextSize) => TEXT_SIZES.find((s) => s.id === size)!.label;
-
 /** Small → Default → Large → Small. */
 export function nextTextSize(size: TextSize): TextSize {
   const i = TEXT_SIZES.findIndex((s) => s.id === size);
