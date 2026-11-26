@@ -1,8 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { createClient } from "@/lib/supabase/browser";
-import { safeNextPath } from "@/lib/safe-redirect";
+import { sendLink } from "./actions";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -21,21 +20,9 @@ export function LoginForm({ next, linkError }: { next?: string; linkError?: bool
     if (!email) return;
     setState({ kind: "sending" });
 
-    const callback = new URL("/auth/callback", window.location.origin);
-    callback.searchParams.set("next", safeNextPath(next));
-
-    const { error } = await createClient().auth.signInWithOtp({
-      email,
-      options: { emailRedirectTo: callback.toString() },
-    });
-    if (error) {
-      const inviteOnly = error.status === 403 || /invite-only/i.test(error.message);
-      setState({
-        kind: "error",
-        message: inviteOnly
-          ? "Nancy is invite-only for now. If you've been invited, use the email address your invitation went to."
-          : error.message,
-      });
+    const result = await sendLink(email, next);
+    if (!result.ok) {
+      setState({ kind: "error", message: result.message });
       return;
     }
     setState({ kind: "sent", email });
