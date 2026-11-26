@@ -1,15 +1,18 @@
 # 📖 Nancy: V1.0 Tester Guide
 
-**The Link:** https://ebook-reader-flame.vercel.app
+**The Link:** https://nancyreader.com
+
+Nancy is invite-only for now: sign in with the email address Robin invited.
 
 **The Concept:** Nancy is a reader first. The page is the product: classic typography, quiet margins, no clutter. On larger screens, it opens as a two-page spread. Beneath the page sits a conversation and a research assistant.
 
 ---
 
 ### 🚀 How to get started
-1. Open the link and sign in with your email (check spam for the magic link).
-2. Upload an EPUB (you can download free ones from Project Gutenberg).
-3. Click the book to open it.
+1. Open the link and sign in with your email. The sign-in link comes from Nancy (hello@nancyreader.com); check spam if it doesn't show up.
+2. On your phone, choose "Add to Home Screen" in the browser: Nancy then opens full-screen like an app.
+3. Upload an EPUB (you can download free ones from Project Gutenberg).
+4. Click the book to open it.
 
 ---
 
@@ -39,11 +42,16 @@
 *   Ask it something outside the book (e.g., *"Search the web for how the Beats connect to Camus"*).
 *   It will show a "Searching the web..." prompt. It will **only** state facts found in the search results, and it will admit what the sources *don't* say, rather than inventing a connection.
 
-**6. Sharing & Exporting**
+**6. Your Language: English, Castellano, Català**
+*   Nancy appears in your phone's or browser's language: English, Castellano or Català.
+*   To switch by hand, add `?lang=es`, `?lang=ca` or `?lang=en` to any Nancy address (e.g. https://nancyreader.com/library?lang=ca). It stays that way in that browser until you switch again.
+*   Ask Nancy in any language and she answers in that language, whatever language the book is in.
+
+**7. Sharing & Exporting**
 *   At the bottom of any AI response, you'll see a **"Share"** button (on mobile) or a **"Copy"** button (on desktop).
 *   Use this to send the AI's synthesis straight into your notes app (Workflowy, Obsidian, Apple Notes, etc.).
 
-**7. Cross-Device Sync**
+**8. Cross-Device Sync**
 *   Open the book on your phone, turn a few pages, and wait 10 seconds.
 *   Open the same book on your Mac. It should automatically jump to where you left off.
 
@@ -52,6 +60,7 @@
 ### 🔍 What to look for (The Feedback we need)
 *   Does it feel like a book, or does it feel like a website?
 *   Is the text size comfortable?
+*   If you read in Castellano or Català: does anything read wrongly?
 *   Does dragging to highlight feel natural?
 *   Is the AI's answer the right length, or does it lecture you?
 *   What breaks?
