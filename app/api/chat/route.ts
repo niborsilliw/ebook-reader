@@ -12,8 +12,7 @@ import { wantsSearch, webPagesOf, webSearchOptions } from "@/lib/rag/web-search"
 import type { WebPage } from "@/lib/cite/bibtex";
 import type { ChatUIMessage } from "@/lib/chat/types";
 import { chatErrorMessage, upstreamStatus } from "@/lib/chat/errors";
-import { strings } from "@/lib/i18n/strings";
-import { langFrom } from "@/lib/i18n/server";
+import { getStrings } from "@/lib/i18n/server";
 import { PASSAGE_MAX_CHARS, splitPassage } from "@/lib/chat/passage";
 
 export const maxDuration = 60;
@@ -32,7 +31,7 @@ const Body = z.object({
 });
 
 export async function POST(request: Request) {
-  const t = strings(langFrom(request.headers.get("accept-language")));
+  const t = await getStrings();
   const supabase = await createClient();
   if (!(await getUserId(supabase))) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 

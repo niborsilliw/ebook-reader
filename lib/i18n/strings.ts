@@ -249,6 +249,10 @@ const es: Strings = {
 
 export const LANGS = ["en", "es"] as const;
 export type Lang = (typeof LANGS)[number];
+export const isLang = (value: unknown): value is Lang => (LANGS as readonly unknown[]).includes(value);
+
+/** Set by ?lang=xx (see middleware.ts); wins over the browser's setting. */
+export const LANG_COOKIE = "lang";
 
 const dictionaries: Record<Lang, Strings> = { en, es };
 
