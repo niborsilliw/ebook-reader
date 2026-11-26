@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { createClient } from "@/lib/supabase/browser";
+import { listConversations, listMessages } from "@/lib/data/actions";
 import type { Citation } from "@/lib/rag/types";
 import type { WebPage } from "@/lib/cite/bibtex";
 import type { ChatUIMessage } from "@/lib/chat/types";
@@ -35,11 +35,7 @@ export function AssistantPanel({ bookId, bookTitle, ready, getCurrentHref, onCit
   const [loadError, setLoadError] = useState<string | null>(null);
 
   const loadConversations = useCallback(async () => {
-    const { data, error } = await createClient()
-      .from("conversations")
-      .select("id, title, updated_at")
-      .eq("book_id", bookId)
-      .order("updated_at", { ascending: false });
+    const { data, error } = await listConversations(bookId);
     if (error) {
       // Keep whatever list we had rather than blanking it.
       console.error("load conversations failed", error.message);
@@ -57,11 +53,7 @@ export function AssistantPanel({ bookId, bookTitle, ready, getCurrentHref, onCit
   async function openConversation(id: string) {
     if (!id) return setThread(newThread());
     setLoadingThread(true);
-    const { data, error } = await createClient()
-      .from("messages")
-      .select("id, role, content, citations, web_sources")
-      .eq("conversation_id", id)
-      .order("created_at");
+    const { data, error } = await listMessages(id);
     setLoadingThread(false);
     if (error) {
       // Stay on the current thread instead of opening an empty one.

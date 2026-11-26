@@ -43,7 +43,6 @@ export default async function ReadPage({ params }: { params: Promise<{ bookId: s
   return (
     <ReaderShell
       bookId={book.id}
-      userId={book.user_id}
       title={book.title ?? "Untitled"}
       author={book.author}
       publication={{ publisher: book.publisher, published: book.published, isbn: book.isbn }}

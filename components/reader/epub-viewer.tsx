@@ -5,8 +5,7 @@ import ePub, { EpubCFI, type Book, type Contents, type Location, type Rendition 
 import type { TocEntry } from "@/lib/epub/parse";
 import type { Highlight } from "@/lib/notes/types";
 import { colorFill } from "@/lib/notes/colors";
-import { createClient } from "@/lib/supabase/browser";
-import { BOOKS_BUCKET, locationsPath } from "@/lib/storage-paths";
+import * as db from "@/lib/data/actions";
 import { IMAGE_PAGE_STYLES, markImagePage } from "@/lib/reader/image-pages";
 import { BODY_FONT, installBodyFont } from "@/lib/reader/fonts";
 import { hideScrollbars } from "@/lib/reader/scrollbars";
@@ -95,7 +94,6 @@ export type ReaderLocation = {
 
 type Props = {
   bookId: string;
-  userId: string;
   fileUrl: string;
   initialCfi: string | null;
   initialPositionAt: string | null;
@@ -117,7 +115,7 @@ type Props = {
   textScale?: number;
 };
 
-type Position = { cfi: string; percentage: number | null; spine_href: string };
+type Position = db.Position;
 type Resizable = { resize(width: number, height: number, cfi?: string): void };
 // The parts of epub.js's (untyped) view manager that move between pages.
 type PageMover = {
@@ -128,7 +126,6 @@ type PageMover = {
 
 export function EpubViewer({
   bookId,
-  userId,
   fileUrl,
   initialCfi,
   initialPositionAt,
@@ -199,7 +196,6 @@ export function EpubViewer({
     let anchor: string | null = null;
     // Whether the rendition is showing two-page spreads (see applySpread).
     let spreadOn: boolean | null = null;
-    const supabase = createClient();
 
     // --- debounced position saving -------------------------------------
     let pending: Position | null = null;
@@ -216,12 +212,7 @@ export function EpubViewer({
       if (!pos || pos.cfi === lastSavedCfi) return;
       lastSavedCfi = pos.cfi;
       saving = true;
-      void supabase
-        .from("reading_positions")
-        .upsert({ book_id: bookId, ...pos }, { onConflict: "user_id,book_id" })
-        .select("updated_at")
-        .single()
-        .then(({ data, error }) => {
+      void db.savePosition(bookId, pos).then(({ data, error }) => {
           saving = false;
           if (error) {
             console.error("save position failed", error.message);
@@ -670,11 +661,7 @@ export function EpubViewer({
           if (cancelled || pulling || saving || pending || document.visibilityState === "hidden") return;
           pulling = true;
           try {
-            const { data, error } = await supabase
-              .from("reading_positions")
-              .select("cfi, updated_at")
-              .eq("book_id", bookId)
-              .maybeSingle();
+            const { data, error } = await db.getPosition(bookId);
             if (error) return console.error("[reader] position sync failed", error.message);
             // Re-check: the reader may have turned a page while this was out.
             if (!data || cancelled || saving || pending || !isNewer(data.updated_at, knownAt)) return;
@@ -729,12 +716,10 @@ export function EpubViewer({
     // Progress locations are expensive to compute for long books: cache them
     // next to the EPUB after the first open.
     async function loadLocations(b: Book) {
-      const path = locationsPath(userId, bookId);
-      const storage = supabase.storage.from(BOOKS_BUCKET);
-      const { data: cached } = await storage.download(path);
+      const cached = await db.loadLocations(bookId);
       if (cached) {
         try {
-          b.locations.load(await cached.text());
+          b.locations.load(cached);
           return;
         } catch {
           // fall through and regenerate
@@ -742,10 +727,7 @@ export function EpubViewer({
       }
       await b.locations.generate(LOCATION_CHARS);
       if (cancelled) return;
-      await storage.upload(path, new Blob([b.locations.save()], { type: "application/json" }), {
-        upsert: true,
-        contentType: "application/json",
-      });
+      await db.saveLocations(bookId, b.locations.save());
     }
 
     const onWindowKey = (e: KeyboardEvent) => {
@@ -822,7 +804,7 @@ export function EpubViewer({
       renditionRef.current = null;
       book?.destroy();
     };
-  }, [bookId, userId, fileUrl, initialCfi, initialPositionAt, toc]);
+  }, [bookId, fileUrl, initialCfi, initialPositionAt, toc]);
 
   useEffect(() => {
     if (textScaleRef.current === textScale) return;

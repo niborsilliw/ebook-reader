@@ -21,13 +21,10 @@ vi.mock("next/dynamic", () => ({
   },
 }));
 vi.mock("next/link", () => ({ default: (props: object) => <a {...props} /> }));
-// Every Supabase query comes back empty.
-vi.mock("@/lib/supabase/browser", () => {
-  const empty = { data: [], error: null };
-  const query: object = new Proxy(() => {}, {
-    get: (_, key) => (key === "then" ? (resolve: (v: typeof empty) => void) => resolve(empty) : () => query),
-  });
-  return { createClient: () => query };
+// Every database call comes back empty.
+vi.mock("@/lib/data/actions", () => {
+  const empty = async () => ({ data: [], error: null });
+  return new Proxy({}, { get: (_, key) => (key === "then" ? undefined : empty) });
 });
 
 const { ReaderShell } = await import("@/components/reader/reader-shell");
@@ -64,7 +61,6 @@ beforeEach(() => {
     root.render(
       <ReaderShell
         bookId="22222222-2222-4222-8222-222222222222"
-        userId="u"
         title="The Stranger"
         author="Albert Camus"
         publication={{ publisher: null, published: null, isbn: null }}

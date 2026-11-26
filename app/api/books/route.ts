@@ -43,5 +43,5 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Could not prepare upload" }, { status: 500 });
   }
 
-  return NextResponse.json({ bookId, path: data.path, token: data.token });
+  return NextResponse.json({ bookId, uploadUrl: data.signedUrl });
 }

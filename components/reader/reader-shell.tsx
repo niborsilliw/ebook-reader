@@ -15,8 +15,8 @@ import { SelectionBar } from "./selection-bar";
 import { BookmarkRibbon } from "./bookmark-ribbon";
 import { AssistantPanel } from "@/components/assistant/assistant-panel";
 import { NotesPanel } from "@/components/notes/notes-panel";
-import { createClient } from "@/lib/supabase/browser";
-import { BOOKMARK_COLUMNS, HIGHLIGHT_COLUMNS, type Bookmark, type Highlight } from "@/lib/notes/types";
+import * as db from "@/lib/data/actions";
+import type { Bookmark, Highlight } from "@/lib/notes/types";
 import type { HighlightColor } from "@/lib/notes/colors";
 import { compareCfi } from "@/lib/notes/order";
 import { bookBibtex } from "@/lib/cite/bibtex";
@@ -31,7 +31,6 @@ const EpubViewer = dynamic(() => import("./epub-viewer").then((m) => m.EpubViewe
 
 type Props = {
   bookId: string;
-  userId: string;
   title: string;
   author: string | null;
   /** Stored at ingest, for citations; null for books indexed before that. */
@@ -60,7 +59,6 @@ const TEXT_SIZE_GLYPH: Record<TextSize, string> = { small: "text-[0.8rem]", defa
 
 export function ReaderShell({
   bookId,
-  userId,
   title,
   author,
   publication,
@@ -133,11 +131,13 @@ export function ReaderShell({
 
   async function saveHighlight(sel: BookSelection, color: HighlightColor) {
     setSaving(true);
-    const { data, error } = await createClient()
-      .from("highlights")
-      .insert({ book_id: bookId, cfi_range: sel.cfiRange, text: sel.text, chapter_title: sel.chapter, color })
-      .select(HIGHLIGHT_COLUMNS)
-      .single();
+    const { data, error } = await db.addHighlight({
+      book_id: bookId,
+      cfi_range: sel.cfiRange,
+      text: sel.text,
+      chapter_title: sel.chapter,
+      color,
+    });
     setSaving(false);
     if (error || !data) {
       console.error("save highlight failed", error?.message);
@@ -157,11 +157,7 @@ export function ReaderShell({
     setSaving(true);
     const text = here.excerpt;
     const label = text.length > BOOKMARK_LABEL_CHARS ? `${text.slice(0, BOOKMARK_LABEL_CHARS - 1).trimEnd()}…` : text || here.chapter;
-    const { data, error } = await createClient()
-      .from("bookmarks")
-      .insert({ book_id: bookId, cfi: here.cfi, label })
-      .select(BOOKMARK_COLUMNS)
-      .single();
+    const { data, error } = await db.addBookmark({ book_id: bookId, cfi: here.cfi, label });
     setSaving(false);
     if (error?.code === "23505") return void toast("This page is already bookmarked");
     if (error || !data) {
@@ -193,7 +189,7 @@ export function ReaderShell({
   };
 
   async function saveNote(id: string, note: string | null) {
-    const { error } = await createClient().from("highlights").update({ note }).eq("id", id);
+    const { error } = await db.updateHighlight(id, { note });
     if (error) {
       console.error("save note failed", error.message);
       toast.error(`Couldn’t save the note: ${error.message}`);
@@ -205,7 +201,7 @@ export function ReaderShell({
 
   async function setVerified(id: string, verified: boolean) {
     setHighlights((list) => list.map((h) => (h.id === id ? { ...h, verified } : h)));
-    const { error } = await createClient().from("highlights").update({ verified }).eq("id", id);
+    const { error } = await db.updateHighlight(id, { verified });
     if (error) {
       console.error("save verified failed", error.message);
       setHighlights((list) => list.map((h) => (h.id === id ? { ...h, verified: !verified } : h)));
@@ -235,7 +231,7 @@ export function ReaderShell({
   // with an Undo that puts the same row back.
   async function deleteHighlight(h: Highlight) {
     setHighlights((list) => list.filter((x) => x.id !== h.id));
-    const { error } = await createClient().from("highlights").delete().eq("id", h.id);
+    const { error } = await db.deleteHighlight(h.id);
     if (error) {
       console.error("delete highlight failed", error.message);
       setHighlights((list) => [...list, h]);
@@ -246,21 +242,7 @@ export function ReaderShell({
       action: {
         label: "Undo",
         onClick: async () => {
-          const { data, error } = await createClient()
-            .from("highlights")
-            .insert({
-              id: h.id,
-              book_id: bookId,
-              cfi_range: h.cfi_range,
-              text: h.text,
-              note: h.note,
-              color: h.color,
-              chapter_title: h.chapter_title,
-              verified: h.verified,
-              created_at: h.created_at,
-            })
-            .select(HIGHLIGHT_COLUMNS)
-            .single();
+          const { data, error } = await db.addHighlight({ ...h, book_id: bookId });
           if (error || !data) return void toast.error(`Couldn’t restore the highlight${error ? `: ${error.message}` : ""}`);
           setHighlights((list) => [...list, data]);
         },
@@ -270,7 +252,7 @@ export function ReaderShell({
 
   async function deleteBookmark(b: Bookmark) {
     setBookmarks((list) => list.filter((x) => x.id !== b.id));
-    const { error } = await createClient().from("bookmarks").delete().eq("id", b.id);
+    const { error } = await db.deleteBookmark(b.id);
     if (error) {
       console.error("delete bookmark failed", error.message);
       setBookmarks((list) => [...list, b]);
@@ -281,11 +263,7 @@ export function ReaderShell({
       action: {
         label: "Undo",
         onClick: async () => {
-          const { data, error } = await createClient()
-            .from("bookmarks")
-            .insert({ id: b.id, book_id: bookId, cfi: b.cfi, label: b.label, created_at: b.created_at })
-            .select(BOOKMARK_COLUMNS)
-            .single();
+          const { data, error } = await db.addBookmark({ ...b, book_id: bookId });
           if (error || !data) return void toast.error(`Couldn’t restore the bookmark${error ? `: ${error.message}` : ""}`);
           setBookmarks((list) => [...list, data]);
         },
@@ -333,7 +311,6 @@ export function ReaderShell({
       <main className="relative min-h-0 flex-1 overflow-hidden">
         <EpubViewer
           bookId={bookId}
-          userId={userId}
           fileUrl={fileUrl}
           initialCfi={initialCfi}
           initialPositionAt={initialPositionAt}

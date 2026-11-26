@@ -3,8 +3,7 @@
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { createClient } from "@/lib/supabase/browser";
-import { BOOKS_BUCKET } from "@/lib/storage-paths";
+import { publicEnv } from "@/lib/env";
 import { MAX_UPLOAD_BYTES, startIngest } from "@/lib/books";
 import { Button } from "@/components/ui/button";
 
@@ -29,10 +28,16 @@ export function UploadButton() {
       if (!res.ok) throw new Error(body.error ?? "Upload failed");
       bookId = body.bookId;
 
-      const { error } = await createClient()
-        .storage.from(BOOKS_BUCKET)
-        .uploadToSignedUrl(body.path, body.token, file, { contentType: "application/epub+zip" });
-      if (error) throw new Error(error.message);
+      // Straight to storage with the one-time URL, as the Supabase client sends it.
+      const form = new FormData();
+      form.append("cacheControl", "3600");
+      form.append("", file);
+      const put = await fetch(body.uploadUrl, {
+        method: "PUT",
+        headers: { apikey: publicEnv.supabaseAnonKey, "x-upsert": "false" },
+        body: form,
+      });
+      if (!put.ok) throw new Error((await put.json().catch(() => null))?.message ?? "Upload failed");
 
       toast.success(`Uploaded “${file.name}”`);
       await startIngest(body.bookId);
